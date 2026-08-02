@@ -1,0 +1,38 @@
+# GuardianSS
+
+Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos expuestos (claves de API, contraseñas, claves privadas, tokens) y ponerlos en cuarentena con trazabilidad. Es la interfaz gráfica del motor Python [`scan_sensitive.py`](../../scan_sensitive.py) del proyecto [Guardian Secret Scanner](../../README.md).
+
+## Requisitos
+
+- macOS con Xcode (proyecto `GuardianSS.xcodeproj`).
+- Python 3 instalado (Homebrew en `/opt/homebrew/bin/python3` o `/usr/local/bin/python3`, o el `/usr/bin/python3` del sistema como último recurso).
+- El motor `scan_sensitive.py` del repositorio padre. **Actualmente la ruta está hardcodeada** en `ScannerLogic.swift` como `/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py` — la app solo funciona en esta máquina/ruta tal cual está. Si se traslada el proyecto, hay que actualizar esa ruta en `runScan`, `quarantineFile` y `quarantineFiles`.
+
+## Arquitectura
+
+| Archivo | Responsabilidad |
+|---|---|
+| `GuardianSSApp.swift` | Punto de entrada `App`, define la ventana principal. |
+| `ContentView.swift` | Toda la interfaz: lista de resultados, detalle de alertas, vistas de bienvenida/limpio/amenazas, selección múltiple y cuarentena. |
+| `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, etc.) a la UI. |
+| `GuardianSS.entitlements` | Hardened Runtime activado (`hardened-process`, `hardened-heap`, `dyld-ro`). |
+| `GuardianSSTests.swift` | Tests unitarios de los modelos `ScanResult`, `Alerta` y `FileMetadata` (decodificación JSON). |
+
+El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subproceso para evitar bloqueos por buffer lleno.
+
+## Compilar y ejecutar
+
+1. Abrir `GuardianSS.xcodeproj` en Xcode.
+2. En *Signing & Capabilities*, comprobar el **App Sandbox**: debe permitir *User Selected File (Read/Write)* o estar desactivado, ya que la app necesita ejecutar un proceso externo (`Process`) y leer/escribir en carpetas elegidas por el usuario.
+3. Run (⌘R). Pulsar "Escanear Carpeta" para elegir un directorio.
+4. Activar el interruptor "Mover a Cuarentena" para que el escaneo también aísle los archivos detectados (equivalente a `scan_sensitive.py --move`).
+
+## Tests
+
+`GuardianSSTests.swift` verifica la decodificación de los modelos de datos. Ejecutar con ⌘U desde Xcode (requiere añadir el archivo a un test target, actualmente no hay target de test configurado en el `.pbxproj`).
+
+## Notas de seguridad
+
+- No hay credenciales ni secretos reales en el código fuente; las cadenas que mencionan "api_key"/"secret" en `ContentView.swift` y `GuardianSSTests.swift` son texto de interfaz o datos de prueba ficticios.
+- `project.pbxproj` contiene el `DEVELOPMENT_TEAM` (Apple Team ID) del firmante. No es una credencial explotable, pero si el repositorio se publica en abierto queda vinculado a la cuenta de desarrollador.
+- La ruta del script Python está hardcodeada (ver *Requisitos*); no es un secreto, pero limita la portabilidad.

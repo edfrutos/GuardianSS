@@ -4,3 +4,6 @@ GEMINI.md
 
 # Binarios compilados (solo se versiona el código fuente)
 GuardianSSTests
+
+# macOS
+.DS_Store
