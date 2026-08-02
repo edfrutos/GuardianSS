@@ -1,0 +1,42 @@
+# Estado de desarrollo — GuardianSS
+
+Notas de la revisión del repo `macos-app/GuardianSS`, a fecha 2026-08-02. Complementa a `README.md` (arquitectura y uso) con el diagnóstico de dónde está el proyecto y qué falta.
+
+## Qué es
+
+GuardianSS es la interfaz nativa macOS (SwiftUI) del proyecto Guardian Secret Scanner. No contiene lógica de detección propia: delega el escaneo real en el script Python `scan_sensitive.py` (fuera de este repo, en `secret-scanner-tool/`), lo lanza como subproceso y pinta sus resultados JSON.
+
+## Funcionalidad en desarrollo
+
+- Selección de carpeta vía `NSOpenPanel` y lanzamiento de escaneo (`ScannerManager.runScan`).
+- Listado de archivos con alertas, detalle por archivo (tipo de alerta, línea, fragmento detectado) y vista de selección múltiple.
+- Cuarentena: individual (`quarantineFile`) y por lote (`quarantineFiles` / `quarantineFileSync`), con lectura de metadatos de traslado (`.metadata.json`) para mostrar fecha y ruta original.
+- Hardened Runtime activado vía entitlements; App Sandbox desactivado a nivel de proyecto (`ENABLE_APP_SANDBOX = NO`), necesario porque la app lanza procesos externos y accede a rutas arbitrarias elegidas por el usuario.
+
+## Lo que se lleva hecho (esta sesión)
+
+1. **Sincronización del repo**: se ordenó un working tree con archivos duplicados y a medio-stage; se limpiaron dos copias obsoletas de `ScannerLogic.swift`, se creó `.gitignore` (excluye `.gemini/`, `GEMINI.md`, el binario `GuardianSSTests` y `.DS_Store`) y se hizo el primer commit real de la lógica de escaneo, entitlements endurecidos y tests.
+2. **Revisión de datos sensibles**: sin credenciales ni secretos reales en el código. Hallazgos de bajo riesgo documentados (ruta hardcodeada del script, Apple Team ID en `project.pbxproj`).
+3. **README.md**: creado desde cero para este subproyecto (no existía); cubre arquitectura, requisitos, build/run y notas de seguridad.
+4. **Refactor de robustez**: la ruta al script Python y la búsqueda del ejecutable `python3` estaban duplicadas idénticas en 4 sitios (`runScan`, `quarantineFile`, `quarantineFiles`→`quarantineFileSync`). Se centralizaron en `ScannerManager.scriptPath` (con override por `GUARDIANSS_SCAN_SCRIPT`) y `resolvePythonExecutable()`. Ahora, si el script no existe en la ruta resuelta, se muestra un error explícito en vez de fallar en silencio o lanzar un proceso condenado a fallar. Verificado con `xcodebuild build` → `BUILD SUCCEEDED`.
+
+## Errores / problemas detectados
+
+| Severidad | Problema | Detalle |
+|---|---|---|
+| Media | Los "tests" no son XCTest | `GuardianSSTests.swift` usa su propio arnés (`@main struct TestRunner`), no `import XCTest`. Se compila y ejecuta aparte con `swiftc` (de ahí el binario suelto `GuardianSSTests`, ya excluido del repo). **No se puede** simplemente "añadir a un test target y pulsar ⌘U" como sugería la primera versión de mi README — eso ya está corregido abajo en pendientes. |
+| Baja | Estado de usuario versionado | `GuardianSS.xcodeproj/xcuserdata/edefrutos.xcuserdatad/xcschemes/xcschememanagement.plist` está trackeado en git. Es configuración local de Xcode (qué esquemas se autocrean/muestran), específica de tu usuario/máquina; normalmente se ignora. |
+| Baja | Icono inconsistente | `Assets.xcassets/AppIcon.appiconset` declara 10 slots de tamaño (16..512, @1x/@2x) pero **no contiene ninguna imagen** — catálogo vacío. El icono real se sirve por el mecanismo legacy `INFOPLIST_KEY_CFBundleIconFile = "icon"` + `GuardianSS/icon.icns`. Funciona, pero Xcode marcará advertencias de icono faltante y hay dos mecanismos conviviendo sin necesidad. |
+| Baja | Cuarentena por lote sin feedback de error | `quarantineFileSync` (usada por `quarantineFiles` para selección múltiple) solo hace `print` si falla un archivo concreto; el usuario no se entera de qué archivo no se pudo aislar, solo ve que `isScanning` vuelve a `false`. |
+| Baja | Duplicación menor | En `ContentView.swift` (`MultiDetailView`), el filtro que calcula archivos no aislados (`unisolatedCount` / `unisolatedPaths`) se recalcula dos veces con el mismo predicado. |
+
+No se han encontrado bugs de severidad alta ni problemas de seguridad explotables (credenciales, inyección de comandos — `Process.arguments` se usa como array, no hay shell interpolation).
+
+## Pendiente (propuesta, a validar contigo)
+
+- Decidir icono: completar `AppIcon.appiconset` con imágenes reales o eliminarlo y documentar que el icono vive solo en `icon.icns`.
+- Sacar `xcuserdata/` del control de versiones (`git rm --cached` + añadir a `.gitignore`).
+- Migrar `GuardianSSTests.swift` a un target XCTest real e integrarlo al `.pbxproj`, o mantener explícitamente el arnés standalone y documentar el comando exacto de compilación/ejecución (hoy no está escrito en ningún sitio).
+- Propagar errores por-archivo en cuarentena múltiple a la UI en vez de solo consola.
+- Repo aún sin remoto (decisión previa: solo local). Cuando quieras subirlo, aviso para crear/enlazar GitHub.
+- El README de la carpeta padre (`secret-scanner-tool/README.md`, fuera de este repo) sigue describiendo un flujo de instalación desactualizado ("crea un proyecto Xcode nuevo y arrastra archivos"); no lo he tocado por estar fuera del repo gestionado, pero conviene actualizarlo si te interesa mantener esa doc coherente.
