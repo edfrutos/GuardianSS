@@ -12,6 +12,7 @@ struct GuardianSSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: 900, idealWidth: 1100, maxWidth: 1600, minHeight: 600, idealHeight: 750, maxHeight: 1200)
         }
     }
 }

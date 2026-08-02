@@ -1,0 +1,6 @@
+# Herramientas IA externas
+.gemini/
+GEMINI.md
+
+# Binarios compilados (solo se versiona el código fuente)
+GuardianSSTests
