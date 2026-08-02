@@ -37,6 +37,28 @@ class ScannerManager: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var lastScannedPath: String = ""
 
+    /// Ruta al motor Python. Se puede sobreescribir con la variable de entorno
+    /// GUARDIANSS_SCAN_SCRIPT para no depender de esta ruta fija de desarrollo.
+    private static var scriptPath: String {
+        ProcessInfo.processInfo.environment["GUARDIANSS_SCAN_SCRIPT"]
+            ?? "/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py"
+    }
+
+    /// Busca el ejecutable de Python 3 más adecuado para evitar stubs bloqueantes de macOS.
+    private static func resolvePythonExecutable() -> String {
+        let candidates = [
+            "/opt/homebrew/bin/python3", // Homebrew en Apple Silicon
+            "/usr/local/bin/python3",    // Homebrew en Intel o instaladores oficiales
+            "/usr/bin/python3"           // Fallback del sistema
+        ]
+        for path in candidates {
+            if FileManager.default.fileExists(atPath: path) && FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return "/usr/bin/python3"
+    }
+
     func runScan(targetPath: String) {
         self.isScanning = true
         self.results = []
@@ -44,27 +66,20 @@ class ScannerManager: ObservableObject {
         self.errorMessage = nil
         self.lastScannedPath = targetPath
 
-        let scriptPath = "/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py"
+        let scriptPath = Self.scriptPath
+
+        guard FileManager.default.fileExists(atPath: scriptPath) else {
+            self.isScanning = false
+            self.hasCompletedScan = true
+            self.errorMessage = "No se encontró el motor de escaneo en \(scriptPath). Define GUARDIANSS_SCAN_SCRIPT con la ruta correcta."
+            return
+        }
+
         let process = Process()
         let pipe = Pipe()
-
-        // Buscar el ejecutable de Python 3 más adecuado para evitar stubs bloqueantes de macOS.
-        let pythonPaths = [
-            "/opt/homebrew/bin/python3", // Homebrew en Apple Silicon
-            "/usr/local/bin/python3",    // Homebrew en Intel o instaladores oficiales
-            "/usr/bin/python3"           // Fallback del sistema
-        ]
-        
-        var selectedPythonPath = "/usr/bin/python3"
-        for path in pythonPaths {
-            if FileManager.default.fileExists(atPath: path) && FileManager.default.isExecutableFile(atPath: path) {
-                selectedPythonPath = path
-                break
-            }
-        }
-        
+        let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
-        
+
         var args = [scriptPath, targetPath, "--json-only"]
         if quarantineActive {
             args.append("--move")
@@ -152,27 +167,19 @@ class ScannerManager: ObservableObject {
         self.isScanning = true
         self.errorMessage = nil
         
-        let scriptPath = "/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py"
+        let scriptPath = Self.scriptPath
+
+        guard FileManager.default.fileExists(atPath: scriptPath) else {
+            self.isScanning = false
+            self.errorMessage = "No se encontró el motor de escaneo en \(scriptPath). Define GUARDIANSS_SCAN_SCRIPT con la ruta correcta."
+            return
+        }
+
         let process = Process()
         let pipe = Pipe()
-        
-        // Buscar el ejecutable de Python 3 más adecuado
-        let pythonPaths = [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3"
-        ]
-        
-        var selectedPythonPath = "/usr/bin/python3"
-        for path in pythonPaths {
-            if FileManager.default.fileExists(atPath: path) && FileManager.default.isExecutableFile(atPath: path) {
-                selectedPythonPath = path
-                break
-            }
-        }
-        
+        let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
-        
+
         // Ejecutar el script para escanear y MOVER solo este archivo
         let args = [scriptPath, archivo, "--json-only", "--move"]
         process.arguments = args
@@ -247,24 +254,15 @@ class ScannerManager: ObservableObject {
     }
 
     private func quarantineFileSync(archivo: String) {
-        let scriptPath = "/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py"
+        let scriptPath = Self.scriptPath
+        guard FileManager.default.fileExists(atPath: scriptPath) else {
+            print("[DEBUG] Motor de escaneo no encontrado en \(scriptPath)")
+            return
+        }
+
         let process = Process()
         let pipe = Pipe()
-        
-        let pythonPaths = [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3"
-        ]
-        
-        var selectedPythonPath = "/usr/bin/python3"
-        for path in pythonPaths {
-            if FileManager.default.fileExists(atPath: path) && FileManager.default.isExecutableFile(atPath: path) {
-                selectedPythonPath = path
-                break
-            }
-        }
-        
+        let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
         let args = [scriptPath, archivo, "--json-only", "--move"]
         process.arguments = args

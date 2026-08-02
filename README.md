@@ -6,7 +6,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 
 - macOS con Xcode (proyecto `GuardianSS.xcodeproj`).
 - Python 3 instalado (Homebrew en `/opt/homebrew/bin/python3` o `/usr/local/bin/python3`, o el `/usr/bin/python3` del sistema como último recurso).
-- El motor `scan_sensitive.py` del repositorio padre. **Actualmente la ruta está hardcodeada** en `ScannerLogic.swift` como `/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py` — la app solo funciona en esta máquina/ruta tal cual está. Si se traslada el proyecto, hay que actualizar esa ruta en `runScan`, `quarantineFile` y `quarantineFiles`.
+- El motor `scan_sensitive.py` del repositorio padre. Por defecto se busca en `/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py`; para usar otra ruta, define la variable de entorno `GUARDIANSS_SCAN_SCRIPT` (por ejemplo, en el *scheme* de Xcode, pestaña *Arguments* → *Environment Variables*). Si el script no aparece en la ruta resuelta, la app muestra un error en vez de fallar en silencio.
 
 ## Arquitectura
 
@@ -35,4 +35,4 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 
 - No hay credenciales ni secretos reales en el código fuente; las cadenas que mencionan "api_key"/"secret" en `ContentView.swift` y `GuardianSSTests.swift` son texto de interfaz o datos de prueba ficticios.
 - `project.pbxproj` contiene el `DEVELOPMENT_TEAM` (Apple Team ID) del firmante. No es una credencial explotable, pero si el repositorio se publica en abierto queda vinculado a la cuenta de desarrollador.
-- La ruta del script Python está hardcodeada (ver *Requisitos*); no es un secreto, pero limita la portabilidad.
+- La ruta del script Python tiene un valor por defecto fijo, ahora sobreescribible con `GUARDIANSS_SCAN_SCRIPT` (ver *Requisitos*).
