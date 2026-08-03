@@ -7,14 +7,6 @@ struct ScanResult: Codable, Identifiable, Hashable {
     let alertas: [Alerta]
     let movido_a: String?
     let copiado: Bool?
-
-    static func == (lhs: ScanResult, rhs: ScanResult) -> Bool {
-        return lhs.archivo == rhs.archivo
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(archivo)
-    }
 }
 
 struct Alerta: Codable, Hashable {

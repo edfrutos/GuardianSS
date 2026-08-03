@@ -38,28 +38,27 @@ final class GuardianSSTests: XCTestCase {
     }
 
     func testScanResultEqualityAndHashing() {
-        let result1 = ScanResult(
-            archivo: "/path/to/file.txt",
-            alertas: [Alerta(tipo: "Token", detalle: nil, linea: nil, muestra: nil)],
-            movido_a: nil,
-            copiado: nil
-        )
+        // Misma ruta, mismo contenido -> iguales (Identifiable.id ya cubre la
+        // identidad por ruta; == debe reflejar el contenido completo para que
+        // SwiftUI detecte cambios de estado, ej. al pasar de "comprometido" a
+        // "aislado", y refresque la fila correspondiente en el sidebar).
+        let alerta = Alerta(tipo: "Token", detalle: nil, linea: nil, muestra: nil)
+        let result1 = ScanResult(archivo: "/path/to/file.txt", alertas: [alerta], movido_a: nil, copiado: nil)
+        let result1Copy = ScanResult(archivo: "/path/to/file.txt", alertas: [alerta], movido_a: nil, copiado: nil)
 
-        let result2 = ScanResult(
-            archivo: "/path/to/file.txt",
-            alertas: [Alerta(tipo: "Password", detalle: "Diff detail", linea: 5, muestra: "pass")],
-            movido_a: "/quarantine/file.txt",
-            copiado: true
-        )
-
-        XCTAssertEqual(result1, result2, "ScanResults con el mismo archivo deben ser iguales")
+        XCTAssertEqual(result1, result1Copy, "ScanResults con el mismo contenido deben ser iguales")
 
         var hasher1 = Hasher()
-        var hasher2 = Hasher()
+        var hasher1Copy = Hasher()
         result1.hash(into: &hasher1)
-        result2.hash(into: &hasher2)
+        result1Copy.hash(into: &hasher1Copy)
+        XCTAssertEqual(hasher1.finalize(), hasher1Copy.finalize(), "ScanResults iguales deben tener el mismo hash")
 
-        XCTAssertEqual(hasher1.finalize(), hasher2.finalize(), "ScanResults iguales deben tener el mismo hash")
+        // Misma ruta, pero ya aislado -> deben ser DISTINTOS pese a compartir
+        // id, o el sidebar no se refresca tras poner un archivo en cuarentena.
+        let quarantined = ScanResult(archivo: "/path/to/file.txt", alertas: [alerta], movido_a: "/quarantine/file.txt", copiado: true)
+        XCTAssertNotEqual(result1, quarantined, "El estado de cuarentena debe afectar a la igualdad, no solo la ruta")
+        XCTAssertEqual(result1.id, quarantined.id, "El id (Identifiable) sigue siendo la ruta, pese a diferir en contenido")
     }
 
     func testFileMetadataDecoding() throws {

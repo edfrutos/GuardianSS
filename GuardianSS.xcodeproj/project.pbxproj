@@ -24,15 +24,13 @@
 /* Begin PBXFileReference section */
 		6927E022301E644000CF8417 /* GuardianSS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuardianSS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9202C7C5C70EFD20A8A27803 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GuardianSSTests.swift; path = GuardianSSTests.swift; sourceTree = "<group>"; };
+		BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GuardianSSTests.swift; sourceTree = "<group>"; };
 		C9D0A894676B4EB63E23F146 /* GuardianSSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GuardianSSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6927E024301E644000CF8417 /* GuardianSS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = GuardianSS;
 			sourceTree = "<group>";
 		};
@@ -97,7 +95,6 @@
 			children = (
 				BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */,
 			);
-			name = GuardianSSTests;
 			path = GuardianSSTests;
 			sourceTree = "<group>";
 		};
@@ -371,7 +368,6 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleIconFile = icon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -425,7 +421,6 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleIconFile = icon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

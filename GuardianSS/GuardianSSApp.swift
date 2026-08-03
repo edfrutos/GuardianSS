@@ -6,9 +6,15 @@
 //
 
 import SwiftUI
+import AppKit
 
 @main
 struct GuardianSSApp: App {
+    init() {
+        // Ventana única de utilidad: la barra de pestañas nativa no aporta aquí.
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
