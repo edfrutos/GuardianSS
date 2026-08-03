@@ -47,15 +47,25 @@ struct ContentView: View {
             .navigationTitle("Resultados")
             .safeAreaInset(edge: .bottom) {
                 // Control de Cuarentena en la barra lateral
-                VStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
                     Divider()
                         .padding(.horizontal, -16)
                         .padding(.bottom, 4)
-                    
-                    Toggle("Mover a Cuarentena", isOn: $scanner.quarantineActive)
+
+                    Toggle("Poner en cuarentena al escanear", isOn: $scanner.quarantineActive)
                         .toggleStyle(.switch)
                         .font(.caption)
                         .fontWeight(.medium)
+
+                    if scanner.quarantineActive {
+                        Toggle("Copiar en vez de mover", isOn: $scanner.copyInsteadOfMove)
+                            .toggleStyle(.switch)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .help("Si está activo, el archivo original permanece en su sitio y se guarda una copia en cuarentena.")
+                    }
+
+                    QuarantineDirectoryPicker(customDir: $scanner.customQuarantineDir)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 16)
@@ -127,6 +137,54 @@ struct ContentView: View {
     }
 }
 
+struct QuarantineDirectoryPicker: View {
+    @Binding var customDir: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("DIRECTORIO DE CUARENTENA")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 6) {
+                Text(customDir ?? "Por defecto (quarantine/)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Button(action: chooseFolder) {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.borderless)
+                .help("Elegir directorio raíz de cuarentena")
+
+                if customDir != nil {
+                    Button(action: { customDir = nil }) {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Volver al directorio por defecto")
+                }
+            }
+        }
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                customDir = url.path
+            }
+        }
+    }
+}
+
 struct DetailView: View {
     let result: ScanResult
     @ObservedObject var scanner: ScannerManager
@@ -181,14 +239,14 @@ struct DetailView: View {
                     Button(action: {
                         scanner.quarantineFile(archivo: result.archivo)
                     }) {
-                        Label("Aislar archivo", systemImage: "shield.fill")
+                        Label(scanner.copyInsteadOfMove ? "Copiar a cuarentena" : "Aislar archivo", systemImage: "shield.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
                 }
-                
+
                 // Etiqueta de Estado Semántica
-                Text(result.movido_a != nil ? "Aislado" : "Comprometido")
+                Text(result.movido_a != nil ? (result.copiado == true ? "Copiado" : "Aislado") : "Comprometido")
                     .font(.caption)
                     .fontWeight(.bold)
                     .padding(.horizontal, 8)
@@ -203,17 +261,25 @@ struct DetailView: View {
     }
 
     func quarantineInfoBox(path: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let esCopia = result.copiado == true
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.green)
                     .font(.title3)
-                Text("ESTADO: PROTEGIDO EN CUARENTENA")
+                Text(esCopia ? "ESTADO: COPIADO A CUARENTENA" : "ESTADO: PROTEGIDO EN CUARENTENA")
                     .font(.headline)
                     .foregroundColor(.green)
                     .fontWeight(.bold)
             }
-            
+
+            if esCopia {
+                Text("El archivo original permanece en su ubicación; esta es una copia.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 28)
+            }
+
             if let meta = metadata {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .top) {
@@ -587,7 +653,7 @@ struct MultiDetailView: View {
                     }
                     scanner.quarantineFiles(archivos: Array(unisolatedPaths))
                 }) {
-                    Label("Aislar \(unisolatedCount) seleccionados", systemImage: "shield.fill")
+                    Label(scanner.copyInsteadOfMove ? "Copiar \(unisolatedCount) seleccionados" : "Aislar \(unisolatedCount) seleccionados", systemImage: "shield.fill")
                         .font(.headline)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 4)

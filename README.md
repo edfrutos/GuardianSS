@@ -1,6 +1,6 @@
 # GuardianSS
 
-Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos expuestos (claves de API, contraseñas, claves privadas, tokens) y ponerlos en cuarentena con trazabilidad. Es la interfaz gráfica del motor Python [`scan_sensitive.py`](../../scan_sensitive.py) del proyecto [Guardian Secret Scanner](../../README.md).
+Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos expuestos (claves de API, contraseñas, claves privadas, tokens) y ponerlos en cuarentena con trazabilidad (moviendo o copiando el archivo, a elección). Es la interfaz gráfica del motor Python [`scan_sensitive.py`](../../scan_sensitive.py) del proyecto [Guardian Secret Scanner](../../README.md).
 
 ## Requisitos
 
@@ -25,7 +25,9 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 1. Abrir `GuardianSS.xcodeproj` en Xcode.
 2. En *Signing & Capabilities*, comprobar el **App Sandbox**: debe permitir *User Selected File (Read/Write)* o estar desactivado, ya que la app necesita ejecutar un proceso externo (`Process`) y leer/escribir en carpetas elegidas por el usuario.
 3. Run (⌘R). Pulsar "Escanear Carpeta" para elegir un directorio.
-4. Activar el interruptor "Mover a Cuarentena" para que el escaneo también aísle los archivos detectados (equivalente a `scan_sensitive.py --move`).
+4. Activar "Poner en cuarentena al escanear" para que el escaneo también aísle los archivos detectados.
+   - Por defecto **mueve** el archivo (`scan_sensitive.py --move`). Con "Copiar en vez de mover" activo, en cambio **copia** el archivo a cuarentena y el original permanece en su sitio (`--copy`).
+   - El directorio raíz de cuarentena es por defecto `quarantine/` junto al script (con una subcarpeta por fecha dentro); se puede elegir otro con el selector de carpeta bajo los interruptores (`--move-to <ruta>`).
 
 ## Tests
 

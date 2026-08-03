@@ -6,11 +6,12 @@ struct ScanResult: Codable, Identifiable, Hashable {
     let archivo: String
     let alertas: [Alerta]
     let movido_a: String?
-    
+    let copiado: Bool?
+
     static func == (lhs: ScanResult, rhs: ScanResult) -> Bool {
         return lhs.archivo == rhs.archivo
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(archivo)
     }
@@ -26,6 +27,7 @@ struct Alerta: Codable, Hashable {
 struct FileMetadata: Codable {
     let timestamp: String
     let original_path: String
+    let modo: String?
     let reasons: [Alerta]
 }
 
@@ -33,9 +35,22 @@ class ScannerManager: ObservableObject {
     @Published var results: [ScanResult] = []
     @Published var isScanning = false
     @Published var quarantineActive = false
+    @Published var copyInsteadOfMove = false
+    @Published var customQuarantineDir: String? = nil
     @Published var hasCompletedScan = false
     @Published var errorMessage: String? = nil
     @Published var lastScannedPath: String = ""
+
+    /// Argumentos CLI para la acción de cuarentena, según el modo (copiar/mover) y
+    /// el directorio raíz elegido (por defecto, la carpeta `quarantine/` junto al script).
+    private func quarantineArgs() -> [String] {
+        var args = [copyInsteadOfMove ? "--copy" : "--move"]
+        if let dir = customQuarantineDir, !dir.isEmpty {
+            args.append("--move-to")
+            args.append(dir)
+        }
+        return args
+    }
 
     /// Ruta al motor Python. Se puede sobreescribir con la variable de entorno
     /// GUARDIANSS_SCAN_SCRIPT para no depender de esta ruta fija de desarrollo.
@@ -82,9 +97,9 @@ class ScannerManager: ObservableObject {
 
         var args = [scriptPath, targetPath, "--json-only"]
         if quarantineActive {
-            args.append("--move")
+            args.append(contentsOf: quarantineArgs())
         }
-        
+
         process.arguments = args
         process.standardOutput = pipe
 
@@ -180,8 +195,8 @@ class ScannerManager: ObservableObject {
         let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
 
-        // Ejecutar el script para escanear y MOVER solo este archivo
-        let args = [scriptPath, archivo, "--json-only", "--move"]
+        // Ejecutar el script para escanear y aislar (copiar o mover) solo este archivo
+        let args = [scriptPath, archivo, "--json-only"] + quarantineArgs()
         process.arguments = args
         process.standardOutput = pipe
         
@@ -264,7 +279,7 @@ class ScannerManager: ObservableObject {
         let pipe = Pipe()
         let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
-        let args = [scriptPath, archivo, "--json-only", "--move"]
+        let args = [scriptPath, archivo, "--json-only"] + quarantineArgs()
         process.arguments = args
         process.standardOutput = pipe
         

@@ -41,13 +41,15 @@ final class GuardianSSTests: XCTestCase {
         let result1 = ScanResult(
             archivo: "/path/to/file.txt",
             alertas: [Alerta(tipo: "Token", detalle: nil, linea: nil, muestra: nil)],
-            movido_a: nil
+            movido_a: nil,
+            copiado: nil
         )
 
         let result2 = ScanResult(
             archivo: "/path/to/file.txt",
             alertas: [Alerta(tipo: "Password", detalle: "Diff detail", linea: 5, muestra: "pass")],
-            movido_a: "/quarantine/file.txt"
+            movido_a: "/quarantine/file.txt",
+            copiado: true
         )
 
         XCTAssertEqual(result1, result2, "ScanResults con el mismo archivo deben ser iguales")
