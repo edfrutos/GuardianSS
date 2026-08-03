@@ -6,19 +6,47 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E428408FCD22EFE48ADEE5CE /* GuardianSSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */; };
+		FED45D96DB4AB97048CB5190 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9202C7C5C70EFD20A8A27803 /* Cocoa.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		FA4533325A7690B474331732 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6927E01A301E644000CF8417 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6927E021301E644000CF8417;
+			remoteInfo = GuardianSS;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		6927E022301E644000CF8417 /* GuardianSS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuardianSS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9202C7C5C70EFD20A8A27803 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GuardianSSTests.swift; path = GuardianSSTests.swift; sourceTree = "<group>"; };
+		C9D0A894676B4EB63E23F146 /* GuardianSSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GuardianSSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6927E024301E644000CF8417 /* GuardianSS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = GuardianSS;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2BA165FD41B3CC614468FEBB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FED45D96DB4AB97048CB5190 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6927E01F301E644000CF8417 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -29,11 +57,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		641B6021044F05E942061483 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				86B0F669985283E785408BCA /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		6927E019301E644000CF8417 = {
 			isa = PBXGroup;
 			children = (
 				6927E024301E644000CF8417 /* GuardianSS */,
 				6927E023301E644000CF8417 /* Products */,
+				F4E2CFD22972E67DE6C7008F /* GuardianSSTests */,
+				641B6021044F05E942061483 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -41,8 +79,26 @@
 			isa = PBXGroup;
 			children = (
 				6927E022301E644000CF8417 /* GuardianSS.app */,
+				C9D0A894676B4EB63E23F146 /* GuardianSSTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		86B0F669985283E785408BCA /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				9202C7C5C70EFD20A8A27803 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		F4E2CFD22972E67DE6C7008F /* GuardianSSTests */ = {
+			isa = PBXGroup;
+			children = (
+				BF6266C5FDEE5EAC03F4C872 /* GuardianSSTests.swift */,
+			);
+			name = GuardianSSTests;
+			path = GuardianSSTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -64,11 +120,27 @@
 				6927E024301E644000CF8417 /* GuardianSS */,
 			);
 			name = GuardianSS;
-			packageProductDependencies = (
-			);
 			productName = GuardianSS;
 			productReference = 6927E022301E644000CF8417 /* GuardianSS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		9109AF8698E988C26980F1E8 /* GuardianSSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26CE79627150E0528850A590 /* Build configuration list for PBXNativeTarget "GuardianSSTests" */;
+			buildPhases = (
+				C607836B7CBA92F2403E04D3 /* Sources */,
+				2BA165FD41B3CC614468FEBB /* Frameworks */,
+				1CF852E5A7B6DF864887D2CE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				135EE96920C3C755D66642D5 /* PBXTargetDependency */,
+			);
+			name = GuardianSSTests;
+			productName = GuardianSSTests;
+			productReference = C9D0A894676B4EB63E23F146 /* GuardianSSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -100,11 +172,19 @@
 			projectRoot = "";
 			targets = (
 				6927E021301E644000CF8417 /* GuardianSS */,
+				9109AF8698E988C26980F1E8 /* GuardianSSTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		1CF852E5A7B6DF864887D2CE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6927E020301E644000CF8417 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -122,7 +202,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C607836B7CBA92F2403E04D3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E428408FCD22EFE48ADEE5CE /* GuardianSSTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		135EE96920C3C755D66642D5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = GuardianSS;
+			target = 6927E021301E644000CF8417 /* GuardianSS */;
+			targetProxy = FA4533325A7690B474331732 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6927E02B301E644100CF8417 /* Debug */ = {
@@ -274,7 +371,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleIconFile = "icon";
+				INFOPLIST_KEY_CFBundleIconFile = icon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -328,7 +425,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleIconFile = "icon";
+				INFOPLIST_KEY_CFBundleIconFile = icon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -353,9 +450,52 @@
 			};
 			name = Release;
 		};
+		8AE4BAF0EA341C8C7B6DCCC5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64e;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.edefrutos.GuardianSSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GuardianSS.app/Contents/MacOS/GuardianSS";
+				VALID_ARCHS = arm64e;
+			};
+			name = Debug;
+		};
+		EE08EB9126892E3DC4F79881 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64e;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.edefrutos.GuardianSSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GuardianSS.app/Contents/MacOS/GuardianSS";
+				VALID_ARCHS = arm64e;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		26CE79627150E0528850A590 /* Build configuration list for PBXNativeTarget "GuardianSSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EE08EB9126892E3DC4F79881 /* Release */,
+				8AE4BAF0EA341C8C7B6DCCC5 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		6927E01D301E644000CF8417 /* Build configuration list for PBXProject "GuardianSS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

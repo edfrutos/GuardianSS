@@ -16,7 +16,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 | `ContentView.swift` | Toda la interfaz: lista de resultados, detalle de alertas, vistas de bienvenida/limpio/amenazas, selección múltiple y cuarentena. |
 | `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, etc.) a la UI. |
 | `GuardianSS.entitlements` | Hardened Runtime activado (`hardened-process`, `hardened-heap`, `dyld-ro`). |
-| `GuardianSSTests.swift` | Tests unitarios de los modelos `ScanResult`, `Alerta` y `FileMetadata` (decodificación JSON). |
+| `GuardianSSTests/GuardianSSTests.swift` | Tests XCTest de los modelos (`ScanResult`, `Alerta`, `FileMetadata`) y del estado inicial de `ScannerManager`. |
 
 El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subproceso para evitar bloqueos por buffer lleno.
 
@@ -29,7 +29,7 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 
 ## Tests
 
-`GuardianSSTests.swift` verifica la decodificación de los modelos de datos. Ejecutar con ⌘U desde Xcode (requiere añadir el archivo a un test target, actualmente no hay target de test configurado en el `.pbxproj`).
+Target XCTest `GuardianSSTests` (bundle de unit tests, dependiente del target `GuardianSS`). Ejecutar con ⌘U desde Xcode o `xcodebuild test -project GuardianSS.xcodeproj -scheme GuardianSS -destination 'platform=macOS'`. Cubre la decodificación de los modelos de datos y el estado inicial de `ScannerManager`; no cubre el lanzamiento del subproceso ni la UI.
 
 ## Notas de seguridad
 
