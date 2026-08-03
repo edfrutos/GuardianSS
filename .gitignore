@@ -4,3 +4,9 @@ GEMINI.md
 
 # macOS
 .DS_Store
+
+# Estado de usuario/máquina en Xcode (breakpoints, historial de esquemas...)
+xcuserdata/
+
+# Artefactos de release (generados y subidos por scripts/release.sh, no versionados)
+*.dmg
