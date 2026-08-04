@@ -247,24 +247,31 @@ class ScannerManager: ObservableObject {
     func quarantineFiles(archivos: [String]) {
         self.isScanning = true
         self.errorMessage = nil
-        
+
         // Ejecutar de forma secuencial en segundo plano para evitar colisiones de ejecución del proceso
         DispatchQueue.global(qos: .userInitiated).async {
+            var fallos: [String] = []
             for archivo in archivos {
-                self.quarantineFileSync(archivo: archivo)
+                if !self.quarantineFileSync(archivo: archivo) {
+                    fallos.append((archivo as NSString).lastPathComponent)
+                }
             }
-            
+
             DispatchQueue.main.async {
                 self.isScanning = false
+                if !fallos.isEmpty {
+                    self.errorMessage = "No se pudo poner en cuarentena: \(fallos.joined(separator: ", "))"
+                }
             }
         }
     }
 
-    private func quarantineFileSync(archivo: String) {
+    @discardableResult
+    private func quarantineFileSync(archivo: String) -> Bool {
         let scriptPath = Self.scriptPath
         guard FileManager.default.fileExists(atPath: scriptPath) else {
             print("[DEBUG] Motor de escaneo no encontrado en \(scriptPath)")
-            return
+            return false
         }
 
         let process = Process()
@@ -274,32 +281,35 @@ class ScannerManager: ObservableObject {
         let args = [scriptPath, archivo, "--json-only"] + quarantineArgs()
         process.arguments = args
         process.standardOutput = pipe
-        
+
         do {
             try process.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            
+
             if let outputString = String(data: data, encoding: .utf8) {
                 let lines = outputString.components(separatedBy: .newlines)
                 let jsonLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("[*]") }
                 let jsonString = jsonLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-                
+
                 if !jsonString.isEmpty,
                    let jsonData = jsonString.data(using: .utf8),
                    let decoded = try? JSONDecoder().decode([ScanResult].self, from: jsonData),
                    !decoded.isEmpty {
-                    
+
                     let newResult = decoded[0]
                     DispatchQueue.main.async {
                         if let index = self.results.firstIndex(where: { $0.archivo == archivo }) {
                             self.results[index] = newResult
                         }
                     }
+                    return newResult.movido_a != nil
                 }
             }
+            return false
         } catch {
             print("[DEBUG] Falla en traslado síncrono: \(error)")
+            return false
         }
     }
 }
