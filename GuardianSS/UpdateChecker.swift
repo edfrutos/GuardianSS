@@ -18,6 +18,14 @@ final class UpdateChecker: ObservableObject {
     @Published var releaseURL: URL?
     @Published var isChecking = false
     @Published var errorMessage: String?
+    /// Mensaje a mostrar en una alerta tras una comprobación manual (no silenciosa) que no
+    /// encontró actualización, o que falló. En comprobaciones automáticas al abrir se deja
+    /// a nil para no molestar si todo está en orden.
+    @Published var manualCheckNotice: String?
+    /// Fuente de verdad para `.alert(isPresented:)`, enlazada directamente desde la vista
+    /// vía `$updateChecker.showManualCheckAlert` (evita derivarla con `.onChange`, frágil
+    /// cuando el valor observado es una propiedad de un ObservableObject externo).
+    @Published var showManualCheckAlert = false
 
     private static let repo = "edfrutos/GuardianSS"
 
@@ -35,14 +43,20 @@ final class UpdateChecker: ObservableObject {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    func check() {
+    /// - Parameter silent: `false` para comprobaciones lanzadas explícitamente por el usuario
+    ///   (menú/botón), que rellenan `manualCheckNotice` con el resultado aunque no haya
+    ///   actualización. `true` (por defecto) para la comprobación automática al abrir la app.
+    func check(silent: Bool = true) {
         guard !isChecking else { return }
         isChecking = true
         errorMessage = nil
+        manualCheckNotice = nil
 
         guard let ghPath = Self.resolveGHExecutable() else {
             isChecking = false
-            errorMessage = "No se encontró 'gh' (GitHub CLI). Instálalo con Homebrew para comprobar actualizaciones."
+            let message = "No se encontró 'gh' (GitHub CLI). Instálalo con Homebrew para comprobar actualizaciones."
+            errorMessage = message
+            if !silent { manualCheckNotice = message; showManualCheckAlert = true }
             return
         }
 
@@ -61,21 +75,34 @@ final class UpdateChecker: ObservableObject {
 
                 DispatchQueue.main.async {
                     self.isChecking = false
+
                     guard process.terminationStatus == 0 else {
-                        self.errorMessage = "No se pudo comprobar actualizaciones (¿hay alguna release publicada en el repositorio?)."
+                        let message = "No se pudo comprobar actualizaciones (¿hay alguna release publicada en el repositorio?)."
+                        self.errorMessage = message
+                        if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
                         return
                     }
                     guard let info = try? JSONDecoder().decode(GitHubReleaseInfo.self, from: data) else {
-                        self.errorMessage = "Respuesta de GitHub con formato inesperado."
+                        let message = "Respuesta de GitHub con formato inesperado."
+                        self.errorMessage = message
+                        if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
                         return
                     }
+
                     self.latestVersion = info.tagName.hasPrefix("v") ? String(info.tagName.dropFirst()) : info.tagName
                     self.releaseURL = URL(string: info.url)
+
+                    if !silent && !self.updateAvailable {
+                        self.manualCheckNotice = "Ya tienes la última versión (\(self.currentVersion))."
+                        self.showManualCheckAlert = true
+                    }
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.isChecking = false
-                    self.errorMessage = "Error al ejecutar 'gh': \(error.localizedDescription)"
+                    let message = "Error al ejecutar 'gh': \(error.localizedDescription)"
+                    self.errorMessage = message
+                    if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
                 }
             }
         }

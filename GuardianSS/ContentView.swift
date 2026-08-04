@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject var scanner = ScannerManager()
-    @StateObject private var updateChecker = UpdateChecker()
+    @EnvironmentObject var updateChecker: UpdateChecker
     @State private var selectedResults: Set<String> = [] // Múltiple selección de IDs (Rutas de archivos)
     @State private var isDropTargeted = false
 
@@ -15,6 +15,11 @@ struct ContentView: View {
         }
         .toolbar { toolbarContent }
         .task { updateChecker.check() }
+        .alert("Actualizaciones", isPresented: $updateChecker.showManualCheckAlert) {
+            Button("OK") { updateChecker.manualCheckNotice = nil }
+        } message: {
+            Text(updateChecker.manualCheckNotice ?? "")
+        }
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
         .overlay {
             if isDropTargeted {
@@ -182,7 +187,7 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .secondaryAction) {
-            Button(action: updateChecker.check) {
+            Button(action: { updateChecker.check(silent: false) }) {
                 if updateChecker.isChecking {
                     ProgressView().scaleEffect(0.5).frame(width: 16, height: 16)
                 } else {

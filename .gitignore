@@ -10,3 +10,6 @@ xcuserdata/
 
 # Artefactos de release (generados y subidos por scripts/release.sh, no versionados)
 *.dmg
+
+# Datos de cobertura de xcodebuild test
+*.profraw
