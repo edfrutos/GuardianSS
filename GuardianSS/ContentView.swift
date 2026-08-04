@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject var scanner = ScannerManager()
     @StateObject private var updateChecker = UpdateChecker()
     @State private var selectedResults: Set<String> = [] // Múltiple selección de IDs (Rutas de archivos)
+    @State private var isDropTargeted = false
 
     var body: some View {
         NavigationSplitView {
@@ -13,6 +15,70 @@ struct ContentView: View {
         }
         .toolbar { toolbarContent }
         .task { updateChecker.check() }
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
+        .overlay {
+            if isDropTargeted {
+                dropOverlay
+            }
+        }
+    }
+
+    // MARK: - Arrastrar y soltar carpeta
+
+    private var dropOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.25)
+            RoundedRectangle(cornerRadius: GuardianTheme.radiusLarge, style: .continuous)
+                .strokeBorder(GuardianTheme.accent, style: StrokeStyle(lineWidth: 3, dash: [10, 6]))
+                .padding(20)
+            VStack(spacing: 12) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(GuardianTheme.accent)
+                Text("Suelta la carpeta para escanearla")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: GuardianTheme.radiusMedium, style: .continuous))
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            let url: URL?
+            switch item {
+            case let data as Data:
+                url = URL(dataRepresentation: data, relativeTo: nil)
+            case let directURL as URL:
+                url = directURL
+            case let nsurl as NSURL:
+                url = nsurl as URL
+            default:
+                url = nil
+            }
+            guard let droppedURL = url else { return }
+
+            DispatchQueue.main.async {
+                var isDirectory: ObjCBool = false
+                let exists = FileManager.default.fileExists(atPath: droppedURL.path, isDirectory: &isDirectory)
+                guard exists, isDirectory.boolValue else {
+                    scanner.errorMessage = "Solo se pueden analizar carpetas. Arrastra un directorio, no un archivo suelto."
+                    scanner.hasCompletedScan = true
+                    return
+                }
+                withAnimation(GuardianTheme.spring) {
+                    scanner.runScan(targetPath: droppedURL.path)
+                }
+            }
+        }
+        return true
     }
 
     // MARK: - Sidebar
