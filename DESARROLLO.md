@@ -25,13 +25,21 @@ GuardianSS es la interfaz nativa macOS (SwiftUI) del proyecto Guardian Secret Sc
    - `ScannerLogic.swift`: `ScanResult` gana `copiado: Bool?`, `FileMetadata` gana `modo: String?`. `ScannerManager` gana `@Published var copyInsteadOfMove` y `@Published var customQuarantineDir: String?`, más un helper `quarantineArgs()` que construye `--copy`/`--move` (+ `--move-to` si hay dir custom) — usado en los 3 puntos que antes tenían `--move` hardcodeado (`runScan`, `quarantineFile`, `quarantineFileSync`).
    - `ContentView.swift`: toggle "Copiar en vez de mover" (solo visible si la cuarentena al escanear está activa), componente nuevo `QuarantineDirectoryPicker` (selector de carpeta + botón para volver al valor por defecto), y las etiquetas/botones ("Aislado" → "Copiado", "Aislar archivo" → "Copiar a cuarentena", aviso de que el original permanece) se adaptan al modo activo.
    - `GuardianSSTests.swift`: actualizado para el nuevo parámetro `copiado` en el init memberwise de `ScanResult`. Verificado con `xcodebuild test` → 4/4 pasan.
+7. **Icono real**: `AppIcon.appiconset` poblado con las 10 imágenes generadas desde el arte proporcionado (`sips`); se eliminó el mecanismo legacy (`icon.icns` + `INFOPLIST_KEY_CFBundleIconFile`), quedando solo `ASSETCATALOG_COMPILER_APPICON_NAME` (que ya estaba puesto pero sin catálogo real detrás).
+8. **Rediseño UI/UX** (`GuardianTheme.swift` + `ContentView.swift`): paleta ámbar/azul adaptativa inspirada en el icono, tarjetas de cristal, insignias con halo, chips de severidad. Verificado interactuando con la app real compilada (capturas de pantalla vía `screencapture -l<windowID>` + clics simulados con `CGEvent`, ver más abajo). Esa verificación encontró y corrigió en el momento:
+   - Sidebar colapsado a icono-only por falta de `navigationSplitViewColumnWidth`.
+   - Contenido cortado en ventana pequeña por falta de `ScrollView` en las vistas de estado.
+   - Toggle "Copiar en vez de mover" oculto sin necesidad tras "Cuarentena al escanear", pese a afectar también al botón manual.
+   - Barra de pestañas nativa de macOS duplicando el título (deshabilitada con `NSWindow.allowsAutomaticWindowTabbing = false`).
+   - **Bug real**: `ScanResult.==`/`hash` solo comparaban `archivo`, así que tras aislar/copiar un archivo la fila del sidebar no se refrescaba (SwiftUI la creía "sin cambios"). Se quitó la implementación custom para que Swift sintetice igualdad por contenido completo; `Identifiable.id` sigue siendo `archivo`. El test que codificaba el comportamiento antiguo como correcto se reescribió.
+9. **Repositorio GitHub y releases**: creado `github.com/edfrutos/GuardianSS` (privado) y empujado todo el historial. Se añadió `scripts/release.sh` (build Release → DMG vía `hdiutil` → tag `vX.Y` → `gh release create`) y se publicó la primera release (`v1.0`).
+10. **Comprobación de actualizaciones** (`UpdateChecker.swift`): compara `MARKETING_VERSION` contra la última release de GitHub. Como el repo es privado, no se llama a la API HTTP directamente (exigiría embeber un token en el binario); se invoca `gh release view` como subproceso, igual que ya se hace con `python3`. Aviso discreto en el sidebar si hay versión nueva, más botón manual en la toolbar. Verificado en la app real: con la versión instalada igual a la última release, correctamente no muestra aviso.
 
 ## Errores / problemas detectados
 
 | Severidad | Problema | Detalle |
 |---|---|---|
-| Baja | Estado de usuario versionado | `GuardianSS.xcodeproj/xcuserdata/edefrutos.xcuserdatad/xcschemes/xcschememanagement.plist` está trackeado en git. Es configuración local de Xcode (qué esquemas se autocrean/muestran), específica de tu usuario/máquina; normalmente se ignora. |
-| Baja | Icono inconsistente | `Assets.xcassets/AppIcon.appiconset` declara 10 slots de tamaño (16..512, @1x/@2x) pero **no contiene ninguna imagen** — catálogo vacío. El icono real se sirve por el mecanismo legacy `INFOPLIST_KEY_CFBundleIconFile = "icon"` + `GuardianSS/icon.icns`. Funciona, pero Xcode marcará advertencias de icono faltante y hay dos mecanismos conviviendo sin necesidad. |
+| Baja | Estado de usuario versionado | `xcschememanagement.plist` sigue trackeado (se dejó así deliberadamente; `xcuserdata/` ya está en `.gitignore` para que no crezca más, ver *Pendiente*). |
 | Baja | Cuarentena por lote sin feedback de error | `quarantineFileSync` (usada por `quarantineFiles` para selección múltiple) solo hace `print` si falla un archivo concreto; el usuario no se entera de qué archivo no se pudo aislar, solo ve que `isScanning` vuelve a `false`. |
 | Baja | Duplicación menor | En `ContentView.swift` (`MultiDetailView`), el filtro que calcula archivos no aislados (`unisolatedCount` / `unisolatedPaths`) se recalcula dos veces con el mismo predicado. |
 
@@ -39,9 +47,8 @@ No se han encontrado bugs de severidad alta ni problemas de seguridad explotable
 
 ## Pendiente (propuesta, a validar contigo)
 
-- Decidir icono: completar `AppIcon.appiconset` con imágenes reales o eliminarlo y documentar que el icono vive solo en `icon.icns`.
-- Sacar `xcuserdata/` del control de versiones (`git rm --cached` + añadir a `.gitignore`).
-- Ampliar cobertura de tests: hoy solo cubren modelos y estado inicial; falta el parseo de la salida real del subproceso, el manejo de errores y la cuarentena.
+- `xcschememanagement.plist` sigue trackeado desde antes de añadir `xcuserdata/` a `.gitignore` (git no deja de trackear un fichero solo por ignorarlo después); sácalo con `git rm --cached` si quieres limpiarlo del todo.
+- Ampliar cobertura de tests: hoy solo cubren modelos, estado inicial y la comparación de versiones; falta el parseo de la salida real del subproceso, el manejo de errores y la cuarentena.
 - Propagar errores por-archivo en cuarentena múltiple a la UI en vez de solo consola.
-- Repo aún sin remoto (decisión previa: solo local). Cuando quieras subirlo, aviso para crear/enlazar GitHub.
 - El README de la carpeta padre (`secret-scanner-tool/README.md`, fuera de este repo) sigue describiendo un flujo de instalación desactualizado ("crea un proyecto Xcode nuevo y arrastra archivos"); no lo he tocado por estar fuera del repo gestionado, pero conviene actualizarlo si te interesa mantener esa doc coherente.
+- La release se firma con el certificado de desarrollo (Apple Development), no notarizada — suficiente para uso propio, pero Gatekeeper puede avisar en otra máquina/cuenta. Si algún día se distribuye a terceros, hará falta certificado Developer ID + notarización.

@@ -94,4 +94,13 @@ final class GuardianSSTests: XCTestCase {
         XCTAssertFalse(manager.isScanning, "isScanning debe ser false al inicio")
         XCTAssertFalse(manager.quarantineActive, "quarantineActive debe ser false al inicio")
     }
+
+    func testUpdateCheckerVersionComparison() {
+        XCTAssertTrue(UpdateChecker.isVersion("1.1", newerThan: "1.0"))
+        XCTAssertTrue(UpdateChecker.isVersion("2.0", newerThan: "1.9"))
+        XCTAssertTrue(UpdateChecker.isVersion("1.0.1", newerThan: "1.0"))
+        XCTAssertFalse(UpdateChecker.isVersion("1.0", newerThan: "1.0"))
+        XCTAssertFalse(UpdateChecker.isVersion("1.0", newerThan: "1.1"))
+        XCTAssertFalse(UpdateChecker.isVersion("0.9", newerThan: "1.0"))
+    }
 }

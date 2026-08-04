@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject var scanner = ScannerManager()
+    @StateObject private var updateChecker = UpdateChecker()
     @State private var selectedResults: Set<String> = [] // Múltiple selección de IDs (Rutas de archivos)
 
     var body: some View {
@@ -11,12 +12,19 @@ struct ContentView: View {
             detail
         }
         .toolbar { toolbarContent }
+        .task { updateChecker.check() }
     }
 
     // MARK: - Sidebar
 
     private var sidebar: some View {
         VStack(spacing: 0) {
+            if updateChecker.updateAvailable {
+                UpdateBanner(checker: updateChecker)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
             if scanner.results.isEmpty {
                 emptySidebarState
             } else {
@@ -28,6 +36,7 @@ struct ContentView: View {
                 .animation(GuardianTheme.spring, value: scanner.results)
             }
         }
+        .animation(GuardianTheme.spring, value: updateChecker.updateAvailable)
         .navigationTitle("Resultados")
         .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 420)
         .safeAreaInset(edge: .bottom) {
@@ -106,6 +115,18 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .secondaryAction) {
+            Button(action: updateChecker.check) {
+                if updateChecker.isChecking {
+                    ProgressView().scaleEffect(0.5).frame(width: 16, height: 16)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
+            }
+            .disabled(updateChecker.isChecking)
+            .help("Buscar actualizaciones")
+        }
+
         ToolbarItem(placement: .primaryAction) {
             if scanner.isScanning {
                 HStack(spacing: 8) {
@@ -182,6 +203,42 @@ struct ResultRow: View {
                 .foregroundColor(statusTint)
                 .font(.system(size: 12))
         }
+    }
+}
+
+// MARK: - Aviso de actualización disponible
+
+struct UpdateBanner: View {
+    @ObservedObject var checker: UpdateChecker
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(GuardianTheme.glow)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Versión \(checker.latestVersion ?? "") disponible")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text("Tienes la \(checker.currentVersion) instalada")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Button("Ver") {
+                if let url = checker.releaseURL {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(GuardianTheme.glow)
+            .controlSize(.small)
+        }
+        .guardianCard(padding: 10, radius: GuardianTheme.radiusSmall)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
 
