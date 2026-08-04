@@ -26,14 +26,14 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 
 1. Abrir `GuardianSS.xcodeproj` en Xcode.
 2. En *Signing & Capabilities*, comprobar el **App Sandbox**: debe permitir *User Selected File (Read/Write)* o estar desactivado, ya que la app necesita ejecutar un proceso externo (`Process`) y leer/escribir en carpetas elegidas por el usuario.
-3. Run (⌘R). Pulsar "Escanear Carpeta" para elegir un directorio.
+3. Run (⌘R). Pulsar "Escanear Carpeta" para elegir un directorio, o **arrastrar una carpeta desde Finder** a cualquier parte de la ventana (aparece un borde discontinuo ámbar mientras se arrastra encima). Ambos caminos llaman al mismo `ScannerManager.runScan`.
 4. Activar "Poner en cuarentena al escanear" para que el escaneo también aísle los archivos detectados.
    - Por defecto **mueve** el archivo (`scan_sensitive.py --move`). Con "Copiar en vez de mover" activo, en cambio **copia** el archivo a cuarentena y el original permanece en su sitio (`--copy`).
    - El directorio raíz de cuarentena es por defecto `quarantine/` junto al script (con una subcarpeta por fecha dentro); se puede elegir otro con el selector de carpeta bajo los interruptores (`--move-to <ruta>`).
 
 ## Actualizaciones y releases
 
-- La app comprueba automáticamente al abrir (y bajo demanda con el botón ↻ de la toolbar) si hay una release más nueva en `github.com/edfrutos/GuardianSS`, comparando `MARKETING_VERSION` contra el último tag. Si la hay, aparece un aviso en el sidebar con enlace a la release.
+- La app comprueba automáticamente al abrir (silenciosa) si hay una release más nueva en `github.com/edfrutos/GuardianSS`, comparando `MARKETING_VERSION` contra el último tag. Si la hay, aparece un aviso en el sidebar con enlace a la release. También se puede comprobar a mano desde el botón ↻ de la toolbar o el menú **GuardianSS → Buscar actualizaciones...**; a diferencia de la comprobación automática, la manual siempre muestra una alerta con el resultado (haya o no actualización, o si falla), para que no parezca que el botón "no hace nada".
 - El repositorio es **privado**, así que la comprobación no usa la API HTTP de GitHub directamente (requeriría embeber un token en el binario, algo que no debe hacerse). En su lugar invoca `gh release view` como subproceso, reutilizando la sesión de `gh` ya autenticada en la máquina. Esto significa que la comprobación de actualizaciones **requiere `gh` CLI instalado y logueado** (`gh auth login`) en cualquier máquina que ejecute la app.
 - Para publicar una release nueva: sube `MARKETING_VERSION` en Xcode (General → Version), commitea, y ejecuta `scripts/release.sh ["notas"]`. El script compila en Release, empaqueta un DMG, crea el tag `vX.Y` y publica la GitHub Release con el DMG adjunto. Se niega a correr si hay cambios sin commitear o si el tag ya existe.
 
