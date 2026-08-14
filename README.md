@@ -35,7 +35,7 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 
 - La app comprueba automáticamente al abrir (silenciosa) si hay una release más nueva en `github.com/edfrutos/GuardianSS`, comparando `MARKETING_VERSION` contra el último tag. Si la hay, aparece un aviso en el sidebar con enlace a la release. También se puede comprobar a mano desde el botón ↻ de la toolbar o el menú **GuardianSS → Buscar actualizaciones...**; a diferencia de la comprobación automática, la manual siempre muestra una alerta con el resultado (haya o no actualización, o si falla), para que no parezca que el botón "no hace nada".
 - El repositorio es **público**, así que la comprobación consulta la API HTTP de GitHub directamente y de forma anónima (`GET https://api.github.com/repos/edfrutos/GuardianSS/releases/latest`), sin necesidad de token ni de tener `gh` CLI instalado en la máquina que ejecuta la app.
-- Para publicar una release nueva: sube `MARKETING_VERSION` en Xcode (General → Version), commitea, y ejecuta `scripts/release.sh ["notas"]`. El script compila en Release, empaqueta un DMG, crea el tag `vX.Y` y publica la GitHub Release con el DMG adjunto. Se niega a correr si hay cambios sin commitear o si el tag ya existe.
+- Para publicar una release nueva: sube `MARKETING_VERSION` en Xcode (General → Version), commitea, y ejecuta `scripts/release.sh ["notas"]`. El script compila en Release, empaqueta un DMG, crea el tag `vX.Y` y publica la GitHub Release con el DMG adjunto. Se niega a correr si hay cambios sin commitear o si el tag ya existe. Ver [`RELEASING.md`](RELEASING.md) para el paso a paso detallado, incluidas las particularidades de publicar desde un sandbox de Claude Code.
 
 ## Tests
 
