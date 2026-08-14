@@ -17,7 +17,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 | `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, etc.) a la UI. |
 | `GuardianSS.entitlements` | Hardened Runtime activado (`hardened-process`, `hardened-heap`, `dyld-ro`). |
 | `GuardianTheme.swift` | Lenguaje visual: paleta ámbar/azul (colores en `Assets.xcassets`), tarjetas de cristal (`guardianCard`), insignias con halo (`GlowBadge`), chips de severidad. |
-| `UpdateChecker.swift` | Comprueba si hay una release más reciente en GitHub (`gh release view`) que la versión instalada (`CFBundleShortVersionString`). |
+| `UpdateChecker.swift` | Comprueba si hay una release más reciente en GitHub (API pública `GET /releases/latest`) que la versión instalada (`CFBundleShortVersionString`). |
 | `GuardianSSTests/GuardianSSTests.swift` | Tests XCTest de los modelos (`ScanResult`, `Alerta`, `FileMetadata`), el estado inicial de `ScannerManager` y la comparación de versiones de `UpdateChecker`. |
 
 El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subproceso para evitar bloqueos por buffer lleno.
@@ -34,7 +34,7 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 ## Actualizaciones y releases
 
 - La app comprueba automáticamente al abrir (silenciosa) si hay una release más nueva en `github.com/edfrutos/GuardianSS`, comparando `MARKETING_VERSION` contra el último tag. Si la hay, aparece un aviso en el sidebar con enlace a la release. También se puede comprobar a mano desde el botón ↻ de la toolbar o el menú **GuardianSS → Buscar actualizaciones...**; a diferencia de la comprobación automática, la manual siempre muestra una alerta con el resultado (haya o no actualización, o si falla), para que no parezca que el botón "no hace nada".
-- El repositorio es **privado**, así que la comprobación no usa la API HTTP de GitHub directamente (requeriría embeber un token en el binario, algo que no debe hacerse). En su lugar invoca `gh release view` como subproceso, reutilizando la sesión de `gh` ya autenticada en la máquina. Esto significa que la comprobación de actualizaciones **requiere `gh` CLI instalado y logueado** (`gh auth login`) en cualquier máquina que ejecute la app.
+- El repositorio es **público**, así que la comprobación consulta la API HTTP de GitHub directamente y de forma anónima (`GET https://api.github.com/repos/edfrutos/GuardianSS/releases/latest`), sin necesidad de token ni de tener `gh` CLI instalado en la máquina que ejecuta la app.
 - Para publicar una release nueva: sube `MARKETING_VERSION` en Xcode (General → Version), commitea, y ejecuta `scripts/release.sh ["notas"]`. El script compila en Release, empaqueta un DMG, crea el tag `vX.Y` y publica la GitHub Release con el DMG adjunto. Se niega a correr si hay cambios sin commitear o si el tag ya existe.
 
 ## Tests

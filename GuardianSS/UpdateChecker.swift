@@ -1,18 +1,24 @@
 import Foundation
 import Combine
 
-/// Respuesta de `gh release view --json tagName,url,name`.
+/// Respuesta de `GET /repos/{repo}/releases/latest`.
 private struct GitHubReleaseInfo: Decodable {
     let tagName: String
-    let url: String
+    let htmlURL: String
     let name: String?
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlURL = "html_url"
+        case name
+    }
 }
 
 /// Comprueba si hay una release más reciente en GitHub que la versión instalada.
 ///
-/// El repositorio es privado, así que la API de GitHub no se puede consultar de forma
-/// anónima por HTTP; en vez de embeber un token en el binario, se invoca `gh` CLI, que
-/// reutiliza la sesión ya autenticada en esta máquina (requiere `gh` instalado y logueado).
+/// El repositorio es público, así que la API de GitHub se consulta de forma anónima
+/// por HTTP; no hace falta token ni depender de que `gh` CLI esté instalado y logueado
+/// en la máquina que ejecuta la app.
 final class UpdateChecker: ObservableObject {
     @Published var latestVersion: String?
     @Published var releaseURL: URL?
@@ -28,6 +34,7 @@ final class UpdateChecker: ObservableObject {
     @Published var showManualCheckAlert = false
 
     private static let repo = "edfrutos/GuardianSS"
+    private static let releasesAPIURL = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
 
     var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
@@ -36,11 +43,6 @@ final class UpdateChecker: ObservableObject {
     var updateAvailable: Bool {
         guard let latest = latestVersion else { return false }
         return Self.isVersion(latest, newerThan: currentVersion)
-    }
-
-    private static func resolveGHExecutable() -> String? {
-        let candidates = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"]
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     /// - Parameter silent: `false` para comprobaciones lanzadas explícitamente por el usuario
@@ -52,60 +54,44 @@ final class UpdateChecker: ObservableObject {
         errorMessage = nil
         manualCheckNotice = nil
 
-        guard let ghPath = Self.resolveGHExecutable() else {
-            isChecking = false
-            let message = "No se encontró 'gh' (GitHub CLI). Instálalo con Homebrew para comprobar actualizaciones."
-            errorMessage = message
-            if !silent { manualCheckNotice = message; showManualCheckAlert = true }
-            return
-        }
+        var request = URLRequest(url: Self.releasesAPIURL)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("GuardianSS-UpdateChecker", forHTTPHeaderField: "User-Agent")
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: ghPath)
-        process.arguments = ["release", "view", "--repo", Self.repo, "--json", "tagName,url,name"]
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                self.isChecking = false
 
-        DispatchQueue.global(qos: .utility).async {
-            do {
-                try process.run()
-                let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-
-                DispatchQueue.main.async {
-                    self.isChecking = false
-
-                    guard process.terminationStatus == 0 else {
-                        let message = "No se pudo comprobar actualizaciones (¿hay alguna release publicada en el repositorio?)."
-                        self.errorMessage = message
-                        if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
-                        return
-                    }
-                    guard let info = try? JSONDecoder().decode(GitHubReleaseInfo.self, from: data) else {
-                        let message = "Respuesta de GitHub con formato inesperado."
-                        self.errorMessage = message
-                        if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
-                        return
-                    }
-
-                    self.latestVersion = info.tagName.hasPrefix("v") ? String(info.tagName.dropFirst()) : info.tagName
-                    self.releaseURL = URL(string: info.url)
-
-                    if !silent && !self.updateAvailable {
-                        self.manualCheckNotice = "Ya tienes la última versión (\(self.currentVersion))."
-                        self.showManualCheckAlert = true
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isChecking = false
-                    let message = "Error al ejecutar 'gh': \(error.localizedDescription)"
+                if let error = error {
+                    let message = "Error al comprobar actualizaciones: \(error.localizedDescription)"
                     self.errorMessage = message
                     if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
+                    return
+                }
+
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200, let data = data else {
+                    let message = "No se pudo comprobar actualizaciones (¿hay alguna release publicada en el repositorio?)."
+                    self.errorMessage = message
+                    if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
+                    return
+                }
+
+                guard let info = try? JSONDecoder().decode(GitHubReleaseInfo.self, from: data) else {
+                    let message = "Respuesta de GitHub con formato inesperado."
+                    self.errorMessage = message
+                    if !silent { self.manualCheckNotice = message; self.showManualCheckAlert = true }
+                    return
+                }
+
+                self.latestVersion = info.tagName.hasPrefix("v") ? String(info.tagName.dropFirst()) : info.tagName
+                self.releaseURL = URL(string: info.htmlURL)
+
+                if !silent && !self.updateAvailable {
+                    self.manualCheckNotice = "Ya tienes la última versión (\(self.currentVersion))."
+                    self.showManualCheckAlert = true
                 }
             }
-        }
+        }.resume()
     }
 
     /// Compara versiones "X.Y.Z" numéricamente (sin asumir el mismo número de componentes).
