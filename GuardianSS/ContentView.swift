@@ -743,6 +743,10 @@ struct AlertCard: View {
 struct WelcomeView: View {
     let onScan: () -> Void
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -750,7 +754,7 @@ struct WelcomeView: View {
                     .padding(.bottom, 8)
 
                 VStack(spacing: 8) {
-                    Text("Guardian v2.0")
+                    Text("Guardian v\(appVersion)")
                         .font(.system(.title, design: .rounded))
                         .fontWeight(.bold)
                     Text("Auditoría de secretos con trazabilidad cronológica.")
