@@ -1,6 +1,7 @@
 # Herramientas IA externas
 .gemini/
 GEMINI.md
+.claude/
 
 # macOS
 .DS_Store
