@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject var scanner = ScannerManager()
     @EnvironmentObject var updateChecker: UpdateChecker
+    @EnvironmentObject var installSetup: InstallSetupManager
     @State private var selectedResults: Set<String> = [] // Múltiple selección de IDs (Rutas de archivos)
     @State private var isDropTargeted = false
 
@@ -14,11 +15,27 @@ struct ContentView: View {
             detail
         }
         .toolbar { toolbarContent }
-        .task { updateChecker.check() }
+        .task {
+            updateChecker.check()
+            installSetup.checkFirstLaunch()
+        }
         .alert("Actualizaciones", isPresented: $updateChecker.showManualCheckAlert) {
             Button("OK") { updateChecker.manualCheckNotice = nil }
         } message: {
             Text(updateChecker.manualCheckNotice ?? "")
+        }
+        .alert("Ubicación de instalación", isPresented: $installSetup.showFirstLaunchPrompt) {
+            Button("Usar \(InstallLocation.defaultDirectory) (recomendado)") {
+                installSetup.confirmDefaultDestination()
+            }
+            Button("Elegir otra carpeta...") {
+                installSetup.chooseCustomDirectoryAndConfirm()
+            }
+            Button("Ahora no", role: .cancel) {
+                installSetup.deferFirstLaunchPrompt()
+            }
+        } message: {
+            Text("Para poder actualizarse sola en el futuro, GuardianSS necesita vivir en un sitio estable. Por defecto se instala en \(InstallLocation.defaultDirectory); puedes elegir otra carpeta si lo prefieres, y cambiarlo más tarde desde el ajuste del sidebar.")
         }
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: handleDrop)
         .overlay {
@@ -111,9 +128,12 @@ struct ContentView: View {
         .navigationTitle("Resultados")
         .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 420)
         .safeAreaInset(edge: .bottom) {
-            QuarantineSettingsCard(scanner: scanner)
-                .padding(12)
-                .background(.bar)
+            VStack(spacing: 8) {
+                InstallLocationCard(installSetup: installSetup)
+                QuarantineSettingsCard(scanner: scanner)
+            }
+            .padding(12)
+            .background(.bar)
         }
     }
 
@@ -420,6 +440,38 @@ struct UpdateBanner: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
+    }
+}
+
+// MARK: - Ubicación de instalación (tarjeta inferior del sidebar)
+
+struct InstallLocationCard: View {
+    @ObservedObject var installSetup: InstallSetupManager
+
+    var body: some View {
+        IconLabelRow(
+            icon: "folder",
+            title: "Ubicación de instalación",
+            subtitle: installSetup.directory,
+            tint: .secondary
+        ) {
+            HStack(spacing: 2) {
+                Button(action: installSetup.chooseCustomDirectoryAndConfirm) {
+                    Image(systemName: "folder.badge.gearshape")
+                }
+                .buttonStyle(.borderless)
+                .help("Elegir otra carpeta de instalación")
+
+                if installSetup.directory != InstallLocation.defaultDirectory {
+                    Button(action: { installSetup.confirmDefaultDestination() }) {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Volver a \(InstallLocation.defaultDirectory)")
+                }
+            }
+        }
+        .guardianCard()
     }
 }
 

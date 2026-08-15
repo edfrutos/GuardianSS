@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import AppKit
 
 /// Respuesta de `GET /repos/{repo}/releases/latest`.
 private struct GitHubReleaseInfo: Decodable {
@@ -266,43 +265,17 @@ final class UpdateChecker: ObservableObject {
     }
 
     /// Sustituye la app en ejecución por la actualización ya verificada y la
-    /// relanza. Se apoya en un script auxiliar independiente porque una app no
-    /// puede sustituir de forma fiable su propio bundle mientras sigue corriendo;
-    /// el script espera a que este proceso termine, hace el intercambio, y se
-    /// autoborra.
+    /// relanza, siempre en `InstallLocation.appPath` (el destino configurado
+    /// por el usuario en el primer lanzamiento) en vez de en `Bundle.main.bundlePath`
+    /// — así la actualización aterriza en el sitio correcto aunque esta
+    /// instancia se esté ejecutando desde otro lado.
     func installAndRelaunch() {
         guard case .readyToInstall = installStage, let stagedAppURL else { return }
-
-        let targetPath = Bundle.main.bundlePath
-        let pid = ProcessInfo.processInfo.processIdentifier
-        let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("guardianss-update-\(UUID().uuidString).sh")
-        let script = """
-        #!/bin/bash
-        while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
-        rm -rf "\(targetPath)"
-        mv "\(stagedAppURL.path)" "\(targetPath)"
-        xattr -cr "\(targetPath)"
-        open "\(targetPath)"
-        rm -f "$0"
-        """
-
         do {
-            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+            try RelaunchHelper.swapAndRelaunch(from: stagedAppURL.path, to: InstallLocation.appPath, move: true)
         } catch {
             installStage = .failed("No se pudo preparar el instalador de la actualización.")
-            return
         }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [scriptURL.path]
-        // Deliberadamente sin esperar: el script debe sobrevivir a que esta app
-        // termine, para poder sustituir su propio bundle y relanzarla.
-        try? process.run()
-
-        NSApplication.shared.terminate(nil)
     }
 
     private func fail(_ message: String) {
