@@ -128,8 +128,12 @@ final class UpdateChecker: ObservableObject {
                     .first { $0.name.hasSuffix(".dmg") }
                     .flatMap { URL(string: $0.browserDownloadURL) }
 
-                if !silent && !self.updateAvailable {
-                    self.manualCheckNotice = "Ya tienes la última versión (\(self.currentVersion))."
+                if !silent {
+                    if self.updateAvailable {
+                        self.manualCheckNotice = "Versión \(self.latestVersion ?? "") disponible. Se está descargando en segundo plano; verás el aviso en el sidebar cuando esté lista para instalar."
+                    } else {
+                        self.manualCheckNotice = "Ya tienes la última versión (\(self.currentVersion))."
+                    }
                     self.showManualCheckAlert = true
                 }
 
