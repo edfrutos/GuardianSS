@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Combine
 
 /// Carpeta donde vive (o debe vivir) el bundle de la app, elegida por el
 /// usuario en el primer lanzamiento y persistida en UserDefaults. Tanto la
