@@ -90,7 +90,7 @@ struct ContentView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            if updateChecker.updateAvailable {
+            if updateChecker.updateAvailable && !updateChecker.installBannerDismissed {
                 UpdateBanner(checker: updateChecker)
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
@@ -283,6 +283,27 @@ struct UpdateBanner: View {
     @ObservedObject var checker: UpdateChecker
 
     var body: some View {
+        Group {
+            switch checker.installStage {
+            case .idle:
+                availableRow
+            case .downloading(let progress):
+                downloadingRow(progress: progress)
+            case .verifying:
+                verifyingRow
+            case .readyToInstall:
+                readyRow
+            case .failed(let message):
+                failedRow(message: message)
+            }
+        }
+        .guardianCard(padding: 10, radius: GuardianTheme.radiusSmall)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    /// Solo se ve si la release no trae un DMG que descargar automáticamente
+    /// (`installStage` se queda en `.idle` porque no hay nada que descargar).
+    private var availableRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.system(size: 16))
@@ -308,8 +329,97 @@ struct UpdateBanner: View {
             .tint(GuardianTheme.glow)
             .controlSize(.small)
         }
-        .guardianCard(padding: 10, radius: GuardianTheme.radiusSmall)
-        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func downloadingRow(progress: Double) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 16))
+                .foregroundStyle(GuardianTheme.glow)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Descargando versión \(checker.latestVersion ?? "")...")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                Text("\(Int(progress * 100)) %")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var verifyingRow: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Verificando firma de la actualización...")
+                .font(.caption)
+                .fontWeight(.semibold)
+            Spacer(minLength: 4)
+        }
+    }
+
+    private var readyRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(GuardianTheme.glow)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Actualización \(checker.latestVersion ?? "") lista")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Text("Se cerrará la app para instalarla")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                Spacer(minLength: 4)
+            }
+            HStack {
+                Spacer()
+                Button("Más tarde") {
+                    checker.installBannerDismissed = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Reiniciar y actualizar") {
+                    checker.installAndRelaunch()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(GuardianTheme.glow)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private func failedRow(message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("No se pudo instalar la actualización")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Button("Ver") {
+                if let url = checker.releaseURL {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
     }
 }
 
