@@ -116,7 +116,13 @@ hdiutil create -volname "${APP_NAME} ${VERSION}" \
   "$DMG_PATH" >/dev/null
 
 echo "==> Grapando el ticket de notarización al DMG..."
-xcrun stapler staple "$DMG_PATH"
+if ! xcrun stapler staple "$DMG_PATH"; then
+  echo "Primer intento fallido (habitual: Apple tarda unos segundos en propagar el ticket para un segundo artefacto). Reintentando en 20s..." >&2
+  sleep 20
+  if ! xcrun stapler staple "$DMG_PATH"; then
+    echo "Aviso: no se pudo grapar el ticket al DMG tras reintentar. El .app de dentro ya está grapado, que es lo que usa Gatekeeper al ejecutarlo; continuando sin bloquear la release." >&2
+  fi
+fi
 
 FINAL_DMG="$REPO_DIR/${APP_NAME}-${VERSION}.dmg"
 cp "$DMG_PATH" "$FINAL_DMG"
