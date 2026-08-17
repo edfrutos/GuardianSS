@@ -7,6 +7,7 @@ struct ContentView: View {
     @EnvironmentObject var installSetup: InstallSetupManager
     @State private var selectedResults: Set<String> = [] // Múltiple selección de IDs (Rutas de archivos)
     @State private var isDropTargeted = false
+    @State private var showQuarantineBrowser = false
 
     var body: some View {
         NavigationSplitView {
@@ -15,6 +16,9 @@ struct ContentView: View {
             detail
         }
         .toolbar { toolbarContent }
+        .sheet(isPresented: $showQuarantineBrowser) {
+            QuarantineBrowserView(scanner: scanner)
+        }
         .task {
             updateChecker.check()
             installSetup.checkFirstLaunch()
@@ -206,6 +210,13 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .secondaryAction) {
+            Button(action: { showQuarantineBrowser = true }) {
+                Image(systemName: "tray.full")
+            }
+            .help("Ver archivos en cuarentena (de cualquier sesión) y restaurarlos a su carpeta de origen")
+        }
+
         ToolbarItem(placement: .secondaryAction) {
             Button(action: { updateChecker.check(silent: false) }) {
                 if updateChecker.isChecking {
@@ -1128,5 +1139,175 @@ struct MultiDetailView: View {
             .guardianCard()
         }
         .padding()
+    }
+}
+
+// MARK: - Explorador de cuarentena (todo lo aislado en disco, no solo el escaneo actual)
+
+struct QuarantineBrowserView: View {
+    @ObservedObject var scanner: ScannerManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var selection = Set<String>()
+    @State private var itemPendingRestore: QuarantinedItem?
+    @State private var confirmBatchRestore = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            if scanner.quarantinedItems.isEmpty {
+                emptyState
+            } else {
+                list
+            }
+            if let error = scanner.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(GuardianTheme.danger)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(GuardianTheme.danger.opacity(0.08))
+            }
+        }
+        .frame(minWidth: 580, idealWidth: 640, minHeight: 420, idealHeight: 520)
+        .onAppear { scanner.loadQuarantinedItems() }
+        .confirmationDialog(
+            "¿Restaurar este archivo a su carpeta original?",
+            isPresented: Binding(
+                get: { itemPendingRestore != nil },
+                set: { if !$0 { itemPendingRestore = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let item = itemPendingRestore {
+                Button("Restaurar") {
+                    scanner.restoreFile(quarantinePath: item.quarantinePath)
+                    itemPendingRestore = nil
+                }
+                Button("Cancelar", role: .cancel) { itemPendingRestore = nil }
+            }
+        } message: {
+            if let item = itemPendingRestore {
+                Text("Se moverá de vuelta a \(item.metadata.original_path). Si ya existe un archivo ahí, la restauración se cancelará.")
+            }
+        }
+        .confirmationDialog(
+            "¿Restaurar \(selection.count) archivos a su carpeta original?",
+            isPresented: $confirmBatchRestore,
+            titleVisibility: .visible
+        ) {
+            Button("Restaurar \(selection.count)") {
+                scanner.restoreFiles(quarantinePaths: Array(selection))
+                selection.removeAll()
+            }
+            Button("Cancelar", role: .cancel) {}
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cuarentena")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text(scanner.effectiveQuarantineDir)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            if !selection.isEmpty {
+                Button(action: { confirmBatchRestore = true }) {
+                    Label("Restaurar \(selection.count)", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(GuardianTheme.success)
+                .disabled(scanner.isRestoring)
+            }
+            Button(action: scanner.loadQuarantinedItems) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .help("Actualizar lista")
+            .disabled(scanner.isRestoring)
+            Button("Cerrar") { dismiss() }
+        }
+        .padding()
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "shippingbox")
+                .font(.system(size: 40))
+                .foregroundColor(.secondary)
+            Text("No hay archivos en cuarentena")
+                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+            Text(scanner.effectiveQuarantineDir)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private var list: some View {
+        List(scanner.quarantinedItems, selection: $selection) { item in
+            QuarantinedItemRow(item: item, isRestoring: scanner.isRestoring) {
+                itemPendingRestore = item
+            }
+        }
+        .listStyle(.inset)
+    }
+}
+
+struct QuarantinedItemRow: View {
+    let item: QuarantinedItem
+    let isRestoring: Bool
+    let onRestore: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: item.metadata.modo == "copy" ? "doc.on.doc" : "shield.fill")
+                .foregroundColor(GuardianTheme.success)
+                .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(URL(fileURLWithPath: item.metadata.original_path).lastPathComponent)
+                    .fontWeight(.semibold)
+                Text(item.metadata.original_path)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(formattedTimestamp)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: onRestore) {
+                Label("Restaurar", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isRestoring)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var formattedTimestamp: String {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = parser.date(from: item.metadata.timestamp) else { return item.metadata.timestamp }
+        let display = DateFormatter()
+        display.dateStyle = .medium
+        display.timeStyle = .short
+        return display.string(from: date)
     }
 }

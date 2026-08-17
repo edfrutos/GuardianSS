@@ -14,7 +14,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 |---|---|
 | `GuardianSSApp.swift` | Punto de entrada `App`, define la ventana principal. |
 | `ContentView.swift` | Toda la interfaz: lista de resultados, detalle de alertas, vistas de bienvenida/limpio/amenazas, selección múltiple y cuarentena. |
-| `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, `isRestoring`, etc.) a la UI. Incluye la cuarentena (mover/copiar) y la restauración (`restoreFile`/`restoreFiles`) de archivos aislados a su carpeta de origen. |
+| `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, `isRestoring`, `quarantinedItems`, etc.) a la UI. Incluye la cuarentena (mover/copiar), la restauración (`restoreFile`/`restoreFiles`) de archivos aislados a su carpeta de origen, y `loadQuarantinedItems()` para descubrir en disco todo lo que hay en cuarentena (de cualquier sesión), leyendo cada `.metadata.json`. |
 | `GuardianSS.entitlements` | Hardened Runtime activado (`hardened-process`, `hardened-heap`, `dyld-ro`). |
 | `GuardianTheme.swift` | Lenguaje visual: paleta ámbar/azul (colores en `Assets.xcassets`), tarjetas de cristal (`guardianCard`), insignias con halo (`GlowBadge`), chips de severidad. |
 | `UpdateChecker.swift` | Comprueba si hay una release más reciente en GitHub (API pública `GET /releases/latest`), la descarga, verifica su firma/notarización, y la instala tras confirmación del usuario. |
@@ -32,6 +32,7 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
    - Por defecto **mueve** el archivo (`scan_sensitive.py --move`). Con "Copiar en vez de mover" activo, en cambio **copia** el archivo a cuarentena y el original permanece en su sitio (`--copy`).
    - El directorio raíz de cuarentena es por defecto `quarantine/` junto al script (con una subcarpeta por fecha dentro); se puede elegir otro con el selector de carpeta bajo los interruptores (`--move-to <ruta>`).
 5. Un archivo ya aislado muestra un botón **"Restaurar"** en su tarjeta de estado (y, en selección múltiple, "Restaurar N a su carpeta original"): devuelve el archivo a la ruta exacta de la que se cogió, leída de su `.metadata.json`, sin importar si la cuarentena usó el directorio por defecto o uno indicado por el usuario (`scan_sensitive.py --restore <ruta>`). Si ya existe un archivo en el destino, la restauración se cancela con un aviso en vez de sobrescribirlo.
+6. El icono de bandeja (🗂️) en la toolbar abre el **explorador de cuarentena**: lista todo lo que hay físicamente en el directorio de cuarentena (leyendo cada `.metadata.json`), no solo lo que produjo el escaneo actual — incluye archivos aislados en sesiones anteriores. Desde ahí se puede restaurar uno o varios a la vez, igual que desde el detalle de un resultado de escaneo.
 
 ## Actualizaciones y releases
 

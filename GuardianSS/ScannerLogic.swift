@@ -16,7 +16,7 @@ struct Alerta: Codable, Hashable {
     let muestra: String?
 }
 
-struct FileMetadata: Codable {
+struct FileMetadata: Codable, Hashable {
     let timestamp: String
     let original_path: String
     let modo: String?
@@ -30,6 +30,15 @@ struct RestoreResult: Codable {
     let error: String?
 }
 
+/// Un archivo ya presente en el directorio de cuarentena en disco, descubierto leyendo
+/// su `.metadata.json` — a diferencia de `ScanResult`, no depende de haber corrido un
+/// escaneo en la sesión actual: cubre también lo que se aisló en sesiones anteriores.
+struct QuarantinedItem: Identifiable, Hashable {
+    var id: String { quarantinePath }
+    let quarantinePath: String
+    let metadata: FileMetadata
+}
+
 class ScannerManager: ObservableObject {
     @Published var results: [ScanResult] = []
     @Published var isScanning = false
@@ -40,6 +49,7 @@ class ScannerManager: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var lastScannedPath: String = ""
     @Published var isRestoring = false
+    @Published var quarantinedItems: [QuarantinedItem] = []
 
     /// Argumentos CLI para la acción de cuarentena, según el modo (copiar/mover) y
     /// el directorio raíz elegido (por defecto, la carpeta `quarantine/` junto al script).
@@ -65,6 +75,41 @@ class ScannerManager: ObservableObject {
     private static var scriptPath: String {
         ProcessInfo.processInfo.environment["GUARDIANSS_SCAN_SCRIPT"]
             ?? "/Volumes/BACKUPS_PROYECTOS/__01.-Github_Repositories/secret-scanner-tool/scan_sensitive.py"
+    }
+
+    /// Directorio raíz de cuarentena efectivo: el elegido por el usuario, o si no hay
+    /// ninguno, el mismo `quarantine/` junto al script que usa `scan_sensitive.py` por defecto.
+    var effectiveQuarantineDir: String {
+        if let dir = customQuarantineDir, !dir.isEmpty { return dir }
+        return (Self.scriptPath as NSString).deletingLastPathComponent + "/quarantine"
+    }
+
+    /// Recorre `effectiveQuarantineDir` (incluidas las subcarpetas por fecha) buscando
+    /// `*.metadata.json`, para poder listar y restaurar también lo que ya se había puesto
+    /// en cuarentena en sesiones anteriores, no solo lo que produjo el escaneo actual.
+    func loadQuarantinedItems() {
+        let root = effectiveQuarantineDir
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: root, isDirectory: &isDirectory), isDirectory.boolValue,
+              let enumerator = fm.enumerator(atPath: root) else {
+            self.quarantinedItems = []
+            return
+        }
+
+        var items: [QuarantinedItem] = []
+        for case let relativePath as String in enumerator {
+            guard relativePath.hasSuffix(".metadata.json") else { continue }
+            let metaFullPath = (root as NSString).appendingPathComponent(relativePath)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: metaFullPath)),
+                  let meta = try? JSONDecoder().decode(FileMetadata.self, from: data) else { continue }
+
+            let quarantineFilePath = String(metaFullPath.dropLast(".metadata.json".count))
+            guard fm.fileExists(atPath: quarantineFilePath) else { continue }
+            items.append(QuarantinedItem(quarantinePath: quarantineFilePath, metadata: meta))
+        }
+
+        self.quarantinedItems = items.sorted { $0.metadata.timestamp > $1.metadata.timestamp }
     }
 
     /// Busca el ejecutable de Python 3 más adecuado para evitar stubs bloqueantes de macOS.
@@ -365,6 +410,7 @@ class ScannerManager: ObservableObject {
                             self.isRestoring = false
                             if decoded.restaurado {
                                 self.results.removeAll { $0.movido_a == quarantinePath }
+                                self.quarantinedItems.removeAll { $0.quarantinePath == quarantinePath }
                                 completion?(true, nil)
                             } else {
                                 self.errorMessage = decoded.error ?? "No se pudo restaurar el archivo."
@@ -414,6 +460,7 @@ class ScannerManager: ObservableObject {
 
             DispatchQueue.main.async {
                 self.results.removeAll { restaurados.contains($0.movido_a ?? "") }
+                self.quarantinedItems.removeAll { restaurados.contains($0.quarantinePath) }
                 self.isRestoring = false
                 if !fallos.isEmpty {
                     self.errorMessage = "No se pudo restaurar: \(fallos.joined(separator: ", "))"
