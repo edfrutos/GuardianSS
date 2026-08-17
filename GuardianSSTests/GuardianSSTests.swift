@@ -103,4 +103,64 @@ final class GuardianSSTests: XCTestCase {
         XCTAssertFalse(UpdateChecker.isVersion("1.0", newerThan: "1.1"))
         XCTAssertFalse(UpdateChecker.isVersion("0.9", newerThan: "1.0"))
     }
+
+    // MARK: - quarantineArgs()
+
+    @MainActor
+    func testQuarantineArgsDefaultsToMove() {
+        let manager = ScannerManager()
+        XCTAssertEqual(manager.quarantineArgs(), ["--move"])
+    }
+
+    @MainActor
+    func testQuarantineArgsCopyMode() {
+        let manager = ScannerManager()
+        manager.copyInsteadOfMove = true
+        XCTAssertEqual(manager.quarantineArgs(), ["--copy"])
+    }
+
+    @MainActor
+    func testQuarantineArgsWithCustomDirectory() {
+        let manager = ScannerManager()
+        manager.customQuarantineDir = "/Users/test/MiCuarentena"
+        XCTAssertEqual(manager.quarantineArgs(), ["--move", "--move-to", "/Users/test/MiCuarentena"])
+    }
+
+    @MainActor
+    func testQuarantineArgsCopyModeWithCustomDirectory() {
+        let manager = ScannerManager()
+        manager.copyInsteadOfMove = true
+        manager.customQuarantineDir = "/Users/test/MiCuarentena"
+        XCTAssertEqual(manager.quarantineArgs(), ["--copy", "--move-to", "/Users/test/MiCuarentena"])
+    }
+
+    @MainActor
+    func testQuarantineArgsIgnoresEmptyCustomDirectory() {
+        // Una cadena vacía (ej. tras limpiar el selector de carpeta) no debe generar "--move-to ''".
+        let manager = ScannerManager()
+        manager.customQuarantineDir = ""
+        XCTAssertEqual(manager.quarantineArgs(), ["--move"])
+    }
+
+    // MARK: - extractJSONPayload(from:)
+
+    func testExtractJSONPayloadStripsLogLines() {
+        let raw = """
+        [*] Escaneando carpeta...
+        [*] 3 archivos revisados
+        [{"archivo": "/a.txt", "alertas": [], "movido_a": null, "copiado": null}]
+        """
+        let payload = ScannerManager.extractJSONPayload(from: raw)
+        XCTAssertEqual(payload, #"[{"archivo": "/a.txt", "alertas": [], "movido_a": null, "copiado": null}]"#)
+    }
+
+    func testExtractJSONPayloadWithoutLogLinesIsUnchanged() {
+        let raw = #"[{"archivo": "/a.txt", "alertas": [], "movido_a": null, "copiado": null}]"#
+        XCTAssertEqual(ScannerManager.extractJSONPayload(from: raw), raw)
+    }
+
+    func testExtractJSONPayloadEmptyOutputIsEmpty() {
+        XCTAssertEqual(ScannerManager.extractJSONPayload(from: ""), "")
+        XCTAssertEqual(ScannerManager.extractJSONPayload(from: "[*] Solo logs, sin JSON"), "")
+    }
 }

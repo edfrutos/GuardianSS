@@ -6,7 +6,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 
 - macOS con Xcode (proyecto `GuardianSS.xcodeproj`).
 - Python 3 instalado (Homebrew en `/opt/homebrew/bin/python3` o `/usr/local/bin/python3`, o el `/usr/bin/python3` del sistema como último recurso).
-- El motor `scan_sensitive.py` del repositorio padre. Por defecto se busca en `/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py`; para usar otra ruta, define la variable de entorno `GUARDIANSS_SCAN_SCRIPT` (por ejemplo, en el *scheme* de Xcode, pestaña *Arguments* → *Environment Variables*). Si el script no aparece en la ruta resuelta, la app muestra un error en vez de fallar en silencio.
+- El motor `scan_sensitive.py` del repositorio padre. Por defecto se busca en `/Volumes/BACKUPS_PROYECTOS/__01.-Github_Repositories/secret-scanner-tool/scan_sensitive.py`; para usar otra ruta, define la variable de entorno `GUARDIANSS_SCAN_SCRIPT` (por ejemplo, en el *scheme* de Xcode, pestaña *Arguments* → *Environment Variables*). Si el script no aparece en la ruta resuelta, la app muestra un error en vez de fallar en silencio.
 
 ## Arquitectura
 
@@ -14,7 +14,7 @@ Aplicación nativa de macOS (SwiftUI) para auditar carpetas en busca de secretos
 |---|---|
 | `GuardianSSApp.swift` | Punto de entrada `App`, define la ventana principal. |
 | `ContentView.swift` | Toda la interfaz: lista de resultados, detalle de alertas, vistas de bienvenida/limpio/amenazas, selección múltiple y cuarentena. |
-| `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, etc.) a la UI. |
+| `ScannerLogic.swift` | `ScannerManager` (`ObservableObject`): lanza `scan_sensitive.py` como subproceso, parsea el JSON de resultados y expone el estado (`isScanning`, `results`, `errorMessage`, `isRestoring`, etc.) a la UI. Incluye la cuarentena (mover/copiar) y la restauración (`restoreFile`/`restoreFiles`) de archivos aislados a su carpeta de origen. |
 | `GuardianSS.entitlements` | Hardened Runtime activado (`hardened-process`, `hardened-heap`, `dyld-ro`). |
 | `GuardianTheme.swift` | Lenguaje visual: paleta ámbar/azul (colores en `Assets.xcassets`), tarjetas de cristal (`guardianCard`), insignias con halo (`GlowBadge`), chips de severidad. |
 | `UpdateChecker.swift` | Comprueba si hay una release más reciente en GitHub (API pública `GET /releases/latest`), la descarga, verifica su firma/notarización, y la instala tras confirmación del usuario. |
@@ -31,6 +31,7 @@ El escaneo corre en background (`DispatchQueue.global`) leyendo el pipe del subp
 4. Activar "Poner en cuarentena al escanear" para que el escaneo también aísle los archivos detectados.
    - Por defecto **mueve** el archivo (`scan_sensitive.py --move`). Con "Copiar en vez de mover" activo, en cambio **copia** el archivo a cuarentena y el original permanece en su sitio (`--copy`).
    - El directorio raíz de cuarentena es por defecto `quarantine/` junto al script (con una subcarpeta por fecha dentro); se puede elegir otro con el selector de carpeta bajo los interruptores (`--move-to <ruta>`).
+5. Un archivo ya aislado muestra un botón **"Restaurar"** en su tarjeta de estado (y, en selección múltiple, "Restaurar N a su carpeta original"): devuelve el archivo a la ruta exacta de la que se cogió, leída de su `.metadata.json`, sin importar si la cuarentena usó el directorio por defecto o uno indicado por el usuario (`scan_sensitive.py --restore <ruta>`). Si ya existe un archivo en el destino, la restauración se cancela con un aviso en vez de sobrescribirlo.
 
 ## Actualizaciones y releases
 

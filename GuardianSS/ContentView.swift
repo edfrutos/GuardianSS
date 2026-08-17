@@ -565,6 +565,7 @@ struct DetailView: View {
     let result: ScanResult
     @ObservedObject var scanner: ScannerManager
     @State private var metadata: FileMetadata?
+    @State private var showRestoreConfirm = false
 
     private var isQuarantined: Bool { result.movido_a != nil }
     private var statusTint: Color { isQuarantined ? GuardianTheme.success : GuardianTheme.danger }
@@ -667,6 +668,22 @@ struct DetailView: View {
                     .font(.headline)
                     .foregroundColor(GuardianTheme.success)
                     .fontWeight(.bold)
+
+                Spacer()
+
+                if metadata != nil {
+                    Button(action: { showRestoreConfirm = true }) {
+                        if scanner.isRestoring {
+                            ProgressView().scaleEffect(0.6).frame(width: 14, height: 14)
+                        } else {
+                            Label("Restaurar", systemImage: "arrow.uturn.backward")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(scanner.isRestoring)
+                    .help("Devuelve el archivo a la carpeta de la que se aisló")
+                }
             }
 
             if esCopia {
@@ -711,6 +728,22 @@ struct DetailView: View {
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .onAppear(perform: loadMetadata)
+        .confirmationDialog(
+            "¿Restaurar este archivo?",
+            isPresented: $showRestoreConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Restaurar a \(metadata.map { URL(fileURLWithPath: $0.original_path).deletingLastPathComponent().lastPathComponent } ?? "carpeta original")") {
+                withAnimation(GuardianTheme.spring) {
+                    scanner.restoreFile(quarantinePath: path)
+                }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            if let meta = metadata {
+                Text("Se moverá de vuelta a \(meta.original_path). Si ya existe un archivo ahí, la restauración se cancelará.")
+            }
+        }
     }
 
     func loadMetadata() {
@@ -1004,6 +1037,9 @@ struct MultiDetailView: View {
     private var unisolatedPaths: [String] {
         relevantResults.filter { $0.movido_a == nil }.map(\.archivo)
     }
+    private var isolatedQuarantinePaths: [String] {
+        relevantResults.compactMap(\.movido_a)
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -1045,6 +1081,20 @@ struct MultiDetailView: View {
                 }
                 .padding(12)
                 .background(GuardianTheme.success.opacity(0.1), in: Capsule())
+            }
+
+            if !isolatedQuarantinePaths.isEmpty {
+                Button(action: {
+                    withAnimation(GuardianTheme.spring) {
+                        scanner.restoreFiles(quarantinePaths: isolatedQuarantinePaths)
+                    }
+                }) {
+                    Label("Restaurar \(isolatedQuarantinePaths.count) a su carpeta original", systemImage: "arrow.uturn.backward")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .disabled(scanner.isRestoring)
             }
 
             VStack(alignment: .leading, spacing: 6) {

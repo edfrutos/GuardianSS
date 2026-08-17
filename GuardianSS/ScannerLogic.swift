@@ -23,6 +23,13 @@ struct FileMetadata: Codable {
     let reasons: [Alerta]
 }
 
+struct RestoreResult: Codable {
+    let restaurado: Bool
+    let origen: String
+    let destino: String?
+    let error: String?
+}
+
 class ScannerManager: ObservableObject {
     @Published var results: [ScanResult] = []
     @Published var isScanning = false
@@ -32,10 +39,11 @@ class ScannerManager: ObservableObject {
     @Published var hasCompletedScan = false
     @Published var errorMessage: String? = nil
     @Published var lastScannedPath: String = ""
+    @Published var isRestoring = false
 
     /// Argumentos CLI para la acción de cuarentena, según el modo (copiar/mover) y
     /// el directorio raíz elegido (por defecto, la carpeta `quarantine/` junto al script).
-    private func quarantineArgs() -> [String] {
+    func quarantineArgs() -> [String] {
         var args = [copyInsteadOfMove ? "--copy" : "--move"]
         if let dir = customQuarantineDir, !dir.isEmpty {
             args.append("--move-to")
@@ -44,11 +52,19 @@ class ScannerManager: ObservableObject {
         return args
     }
 
+    /// Aísla, de la salida cruda del subproceso, el JSON de resultados descartando
+    /// las líneas de log tipo "[*] Escaneando..." que `scan_sensitive.py` mezcla en stdout.
+    static func extractJSONPayload(from output: String) -> String {
+        let lines = output.components(separatedBy: .newlines)
+        let jsonLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("[*]") }
+        return jsonLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Ruta al motor Python. Se puede sobreescribir con la variable de entorno
     /// GUARDIANSS_SCAN_SCRIPT para no depender de esta ruta fija de desarrollo.
     private static var scriptPath: String {
         ProcessInfo.processInfo.environment["GUARDIANSS_SCAN_SCRIPT"]
-            ?? "/Volumes/BACKUPS_PROYECTOS/secret-scanner-tool/scan_sensitive.py"
+            ?? "/Volumes/BACKUPS_PROYECTOS/__01.-Github_Repositories/secret-scanner-tool/scan_sensitive.py"
     }
 
     /// Busca el ejecutable de Python 3 más adecuado para evitar stubs bloqueantes de macOS.
@@ -117,11 +133,8 @@ class ScannerManager: ObservableObject {
                 if let outputString = String(data: data, encoding: .utf8) {
                     print("[DEBUG] Salida cruda del proceso: \(outputString)")
                     
-                    // Filtrar las líneas de logs (como "[*] Escaneando...") para dejar solo el JSON
-                    let lines = outputString.components(separatedBy: .newlines)
-                    let jsonLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("[*]") }
-                    let jsonString = jsonLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-                    
+                    let jsonString = Self.extractJSONPayload(from: outputString)
+
                     if !jsonString.isEmpty {
                         if let jsonData = jsonString.data(using: .utf8),
                            let decoded = try? JSONDecoder().decode([ScanResult].self, from: jsonData) {
@@ -207,15 +220,13 @@ class ScannerManager: ObservableObject {
                 if let outputString = String(data: data, encoding: .utf8) {
                     print("[DEBUG] Salida cruda de cuarentena individual: \(outputString)")
                     
-                    let lines = outputString.components(separatedBy: .newlines)
-                    let jsonLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("[*]") }
-                    let jsonString = jsonLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-                    
+                    let jsonString = Self.extractJSONPayload(from: outputString)
+
                     if !jsonString.isEmpty,
                        let jsonData = jsonString.data(using: .utf8),
                        let decoded = try? JSONDecoder().decode([ScanResult].self, from: jsonData),
                        !decoded.isEmpty {
-                        
+
                         let newResult = decoded[0]
                         print("[DEBUG] Archivo movido con éxito. Nueva ruta: \(String(describing: newResult.movido_a))")
                         
@@ -288,9 +299,7 @@ class ScannerManager: ObservableObject {
             process.waitUntilExit()
 
             if let outputString = String(data: data, encoding: .utf8) {
-                let lines = outputString.components(separatedBy: .newlines)
-                let jsonLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("[*]") }
-                let jsonString = jsonLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                let jsonString = Self.extractJSONPayload(from: outputString)
 
                 if !jsonString.isEmpty,
                    let jsonData = jsonString.data(using: .utf8),
@@ -309,6 +318,141 @@ class ScannerManager: ObservableObject {
             return false
         } catch {
             print("[DEBUG] Falla en traslado síncrono: \(error)")
+            return false
+        }
+    }
+
+    /// Restaura un único archivo desde cuarentena a la ruta de origen guardada en su
+    /// `.metadata.json` (la misma carpeta de la que se aisló al escanear o poner en
+    /// cuarentena manualmente). Al terminar, elimina el resultado de la lista actual
+    /// si la restauración tuvo éxito, ya que el archivo ha dejado de estar en cuarentena.
+    func restoreFile(quarantinePath: String, completion: ((Bool, String?) -> Void)? = nil) {
+        self.isRestoring = true
+        self.errorMessage = nil
+
+        let scriptPath = Self.scriptPath
+        guard FileManager.default.fileExists(atPath: scriptPath) else {
+            self.isRestoring = false
+            let mensaje = "No se encontró el motor de escaneo en \(scriptPath). Define GUARDIANSS_SCAN_SCRIPT con la ruta correcta."
+            self.errorMessage = mensaje
+            completion?(false, mensaje)
+            return
+        }
+
+        let process = Process()
+        let pipe = Pipe()
+        let selectedPythonPath = Self.resolvePythonExecutable()
+        process.executableURL = URL(fileURLWithPath: selectedPythonPath)
+        process.arguments = [scriptPath, "--restore", quarantinePath, "--json-only"]
+        process.standardOutput = pipe
+
+        print("[DEBUG] Restaurando desde cuarentena: \(quarantinePath)")
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+
+                if let outputString = String(data: data, encoding: .utf8) {
+                    print("[DEBUG] Salida cruda de restauración: \(outputString)")
+                    let jsonString = Self.extractJSONPayload(from: outputString)
+
+                    if !jsonString.isEmpty,
+                       let jsonData = jsonString.data(using: .utf8),
+                       let decoded = try? JSONDecoder().decode(RestoreResult.self, from: jsonData) {
+                        DispatchQueue.main.async {
+                            self.isRestoring = false
+                            if decoded.restaurado {
+                                self.results.removeAll { $0.movido_a == quarantinePath }
+                                completion?(true, nil)
+                            } else {
+                                self.errorMessage = decoded.error ?? "No se pudo restaurar el archivo."
+                                completion?(false, self.errorMessage)
+                            }
+                        }
+                        return
+                    }
+                }
+
+                DispatchQueue.main.async {
+                    self.isRestoring = false
+                    let mensaje = "No se pudo completar la restauración del archivo."
+                    self.errorMessage = mensaje
+                    completion?(false, mensaje)
+                }
+            } catch {
+                print("[DEBUG] Falla al restaurar: \(error)")
+                DispatchQueue.main.async {
+                    self.isRestoring = false
+                    let mensaje = "Error de ejecución al restaurar: \(error.localizedDescription)"
+                    self.errorMessage = mensaje
+                    completion?(false, mensaje)
+                }
+            }
+        }
+    }
+
+    /// Restaura varios archivos en cuarentena de forma secuencial, cada uno a su
+    /// carpeta de origen. Los que fallen (por ejemplo, porque ya existe un archivo
+    /// en el destino) se reportan agrupados en `errorMessage`.
+    func restoreFiles(quarantinePaths: [String]) {
+        self.isRestoring = true
+        self.errorMessage = nil
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var fallos: [String] = []
+            var restaurados: [String] = []
+
+            for path in quarantinePaths {
+                if self.restoreFileSync(quarantinePath: path) {
+                    restaurados.append(path)
+                } else {
+                    fallos.append((path as NSString).lastPathComponent)
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.results.removeAll { restaurados.contains($0.movido_a ?? "") }
+                self.isRestoring = false
+                if !fallos.isEmpty {
+                    self.errorMessage = "No se pudo restaurar: \(fallos.joined(separator: ", "))"
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func restoreFileSync(quarantinePath: String) -> Bool {
+        let scriptPath = Self.scriptPath
+        guard FileManager.default.fileExists(atPath: scriptPath) else {
+            print("[DEBUG] Motor de escaneo no encontrado en \(scriptPath)")
+            return false
+        }
+
+        let process = Process()
+        let pipe = Pipe()
+        let selectedPythonPath = Self.resolvePythonExecutable()
+        process.executableURL = URL(fileURLWithPath: selectedPythonPath)
+        process.arguments = [scriptPath, "--restore", quarantinePath, "--json-only"]
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+
+            if let outputString = String(data: data, encoding: .utf8) {
+                let jsonString = Self.extractJSONPayload(from: outputString)
+                if !jsonString.isEmpty,
+                   let jsonData = jsonString.data(using: .utf8),
+                   let decoded = try? JSONDecoder().decode(RestoreResult.self, from: jsonData) {
+                    return decoded.restaurado
+                }
+            }
+            return false
+        } catch {
+            print("[DEBUG] Falla en restauración síncrona: \(error)")
             return false
         }
     }
