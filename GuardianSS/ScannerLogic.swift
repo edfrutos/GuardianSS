@@ -84,6 +84,15 @@ class ScannerManager: ObservableObject {
         return (Self.scriptPath as NSString).deletingLastPathComponent + "/quarantine"
     }
 
+    /// Comprueba si la carpeta que contenía el archivo original todavía existe en disco.
+    /// Si no, restaurar sin `--restore-to` la recrearía vacía en la misma ruta — se usa
+    /// para avisar al usuario y ofrecerle elegir un destino distinto en su lugar.
+    static func originalFolderExists(originalPath: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        let folder = (originalPath as NSString).deletingLastPathComponent
+        return FileManager.default.fileExists(atPath: folder, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
     /// Recorre `effectiveQuarantineDir` (incluidas las subcarpetas por fecha) buscando
     /// `*.metadata.json`, para poder listar y restaurar también lo que ya se había puesto
     /// en cuarentena en sesiones anteriores, no solo lo que produjo el escaneo actual.
@@ -369,9 +378,11 @@ class ScannerManager: ObservableObject {
 
     /// Restaura un único archivo desde cuarentena a la ruta de origen guardada en su
     /// `.metadata.json` (la misma carpeta de la que se aisló al escanear o poner en
-    /// cuarentena manualmente). Al terminar, elimina el resultado de la lista actual
-    /// si la restauración tuvo éxito, ya que el archivo ha dejado de estar en cuarentena.
-    func restoreFile(quarantinePath: String, completion: ((Bool, String?) -> Void)? = nil) {
+    /// cuarentena manualmente), o a `restoreTo` si se indica un destino alternativo
+    /// (por ejemplo, cuando la carpeta original ya no existe). Al terminar, elimina el
+    /// resultado de la lista actual si la restauración tuvo éxito, ya que el archivo ha
+    /// dejado de estar en cuarentena.
+    func restoreFile(quarantinePath: String, restoreTo: String? = nil, completion: ((Bool, String?) -> Void)? = nil) {
         self.isRestoring = true
         self.errorMessage = nil
 
@@ -388,7 +399,11 @@ class ScannerManager: ObservableObject {
         let pipe = Pipe()
         let selectedPythonPath = Self.resolvePythonExecutable()
         process.executableURL = URL(fileURLWithPath: selectedPythonPath)
-        process.arguments = [scriptPath, "--restore", quarantinePath, "--json-only"]
+        var arguments = [scriptPath, "--restore", quarantinePath, "--json-only"]
+        if let restoreTo, !restoreTo.isEmpty {
+            arguments.append(contentsOf: ["--restore-to", restoreTo])
+        }
+        process.arguments = arguments
         process.standardOutput = pipe
 
         print("[DEBUG] Restaurando desde cuarentena: \(quarantinePath)")

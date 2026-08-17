@@ -163,4 +163,29 @@ final class GuardianSSTests: XCTestCase {
         XCTAssertEqual(ScannerManager.extractJSONPayload(from: ""), "")
         XCTAssertEqual(ScannerManager.extractJSONPayload(from: "[*] Solo logs, sin JSON"), "")
     }
+
+    // MARK: - originalFolderExists(originalPath:)
+
+    func testOriginalFolderExistsWhenParentDirectoryPresent() {
+        let tempDir = FileManager.default.temporaryDirectory
+        let originalPath = tempDir.appendingPathComponent("secret.txt").path
+        XCTAssertTrue(ScannerManager.originalFolderExists(originalPath: originalPath))
+    }
+
+    func testOriginalFolderExistsIsFalseWhenParentDirectoryMissing() {
+        let missingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("guardianss-tests-missing-\(UUID().uuidString)")
+        let originalPath = missingDir.appendingPathComponent("secret.txt").path
+        XCTAssertFalse(ScannerManager.originalFolderExists(originalPath: originalPath))
+    }
+
+    func testOriginalFolderExistsIsFalseWhenParentIsAFileNotADirectory() throws {
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("guardianss-tests-file-\(UUID().uuidString)")
+        try Data().write(to: tempFile)
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let originalPath = tempFile.appendingPathComponent("secret.txt").path
+        XCTAssertFalse(ScannerManager.originalFolderExists(originalPath: originalPath))
+    }
 }

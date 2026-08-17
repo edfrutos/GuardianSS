@@ -577,6 +577,7 @@ struct DetailView: View {
     @ObservedObject var scanner: ScannerManager
     @State private var metadata: FileMetadata?
     @State private var showRestoreConfirm = false
+    @State private var showMissingFolderChoice = false
 
     private var isQuarantined: Bool { result.movido_a != nil }
     private var statusTint: Color { isQuarantined ? GuardianTheme.success : GuardianTheme.danger }
@@ -682,8 +683,14 @@ struct DetailView: View {
 
                 Spacer()
 
-                if metadata != nil {
-                    Button(action: { showRestoreConfirm = true }) {
+                if let meta = metadata {
+                    Button(action: {
+                        if ScannerManager.originalFolderExists(originalPath: meta.original_path) {
+                            showRestoreConfirm = true
+                        } else {
+                            showMissingFolderChoice = true
+                        }
+                    }) {
                         if scanner.isRestoring {
                             ProgressView().scaleEffect(0.6).frame(width: 14, height: 14)
                         } else {
@@ -753,6 +760,43 @@ struct DetailView: View {
         } message: {
             if let meta = metadata {
                 Text("Se moverá de vuelta a \(meta.original_path). Si ya existe un archivo ahí, la restauración se cancelará.")
+            }
+        }
+        .confirmationDialog(
+            "La carpeta original ya no existe",
+            isPresented: $showMissingFolderChoice,
+            titleVisibility: .visible
+        ) {
+            Button("Elegir otra carpeta…") { chooseFolderAndRestore() }
+            Button("Restaurar en la ruta original (se recreará la carpeta)") {
+                withAnimation(GuardianTheme.spring) {
+                    scanner.restoreFile(quarantinePath: path)
+                }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            if let meta = metadata {
+                Text("\(URL(fileURLWithPath: meta.original_path).deletingLastPathComponent().path) ya no existe en disco. Puedes elegir una carpeta distinta o restaurar ahí de todos modos, en cuyo caso se recreará vacía.")
+            }
+        }
+    }
+
+    func chooseFolderAndRestore() {
+        guard let meta = metadata, let quarantinePath = result.movido_a else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Restaurar aquí"
+        panel.message = "Elige la carpeta donde restaurar \(URL(fileURLWithPath: meta.original_path).lastPathComponent)"
+
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                let filename = URL(fileURLWithPath: meta.original_path).lastPathComponent
+                let destination = url.appendingPathComponent(filename).path
+                withAnimation(GuardianTheme.spring) {
+                    scanner.restoreFile(quarantinePath: quarantinePath, restoreTo: destination)
+                }
             }
         }
     }
@@ -1149,6 +1193,7 @@ struct QuarantineBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selection = Set<String>()
     @State private var itemPendingRestore: QuarantinedItem?
+    @State private var itemMissingFolder: QuarantinedItem?
     @State private var confirmBatchRestore = false
 
     var body: some View {
@@ -1201,6 +1246,45 @@ struct QuarantineBrowserView: View {
                 selection.removeAll()
             }
             Button("Cancelar", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "La carpeta original ya no existe",
+            isPresented: Binding(
+                get: { itemMissingFolder != nil },
+                set: { if !$0 { itemMissingFolder = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let item = itemMissingFolder {
+                Button("Elegir otra carpeta…") { chooseFolderAndRestore(item: item) }
+                Button("Restaurar en la ruta original (se recreará la carpeta)") {
+                    scanner.restoreFile(quarantinePath: item.quarantinePath)
+                    itemMissingFolder = nil
+                }
+                Button("Cancelar", role: .cancel) { itemMissingFolder = nil }
+            }
+        } message: {
+            if let item = itemMissingFolder {
+                Text("\(URL(fileURLWithPath: item.metadata.original_path).deletingLastPathComponent().path) ya no existe en disco. Puedes elegir una carpeta distinta o restaurar ahí de todos modos, en cuyo caso se recreará vacía.")
+            }
+        }
+    }
+
+    private func chooseFolderAndRestore(item: QuarantinedItem) {
+        itemMissingFolder = nil
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Restaurar aquí"
+        panel.message = "Elige la carpeta donde restaurar \(URL(fileURLWithPath: item.metadata.original_path).lastPathComponent)"
+
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                let filename = URL(fileURLWithPath: item.metadata.original_path).lastPathComponent
+                let destination = url.appendingPathComponent(filename).path
+                scanner.restoreFile(quarantinePath: item.quarantinePath, restoreTo: destination)
+            }
         }
     }
 
@@ -1258,7 +1342,11 @@ struct QuarantineBrowserView: View {
     private var list: some View {
         List(scanner.quarantinedItems, selection: $selection) { item in
             QuarantinedItemRow(item: item, isRestoring: scanner.isRestoring) {
-                itemPendingRestore = item
+                if ScannerManager.originalFolderExists(originalPath: item.metadata.original_path) {
+                    itemPendingRestore = item
+                } else {
+                    itemMissingFolder = item
+                }
             }
         }
         .listStyle(.inset)
